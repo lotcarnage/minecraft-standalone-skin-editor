@@ -1,0 +1,3127 @@
+<!doctype html>
+
+<!--
+MIT License
+
+Copyright (c) 2026 lotcarnage
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Minecraft Standalone Skin Editor</title>
+  <style>
+    :root {
+      color-scheme: dark;
+
+      /* テーマ色（ここで編集） */
+      --c-bg: #111;
+      --c-text: #eee;
+      --c-text-soft: #ddd;
+      --c-muted: #ccc;
+      --c-muted2: #bbb;
+
+      --c-header-bg: #1a1a1a;
+
+      --c-panel-bg: #171717;
+      --c-panel-bg2: #141414;
+      --c-panel-bg3: #121212;
+      --c-card-bg: #101010;
+
+      --c-input-bg: #222;
+
+      --c-canvas-bg: #0b0b0b;
+
+      --c-border: #2a2a2a;
+      --c-border-strong: #333;
+
+      --c-danger-border: #553333;
+
+      --c-dirty-outline: #0ff;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--c-bg);
+      color: var(--c-text);
+
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 10px 12px;
+      background: var(--c-header-bg);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    button,
+    input[type="number"],
+    input[type="color"] {
+      background: var(--c-input-bg);
+      border: 1px solid var(--c-border-strong);
+      color: var(--c-text);
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--c-border);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    label {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin: 2px 0;
+      color: var(--c-muted);
+      font-size: 13px;
+    }
+
+    .layout {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      box-sizing: border-box;
+      align-items: stretch;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .pane.left {
+      flex: 0 0 340px;
+    }
+
+    .pane.middle {
+      flex: 1 1 auto;
+      height: 90vh;
+    }
+
+    .pane.right {
+      flex: 0 0 240px;
+    }
+
+    /* スクロール領域の挙動調整 */
+    .pane .panel {
+      min-width: 0;
+    }
+
+    .pane.left .panel,
+    .pane.right .panel {
+      flex: 0 0 auto;
+    }
+
+    .pane.middle .panel {
+      flex: 1 1 auto;
+      overflow: auto;
+    }
+
+    .pane.left .panel.texturePanel {
+      overflow: auto;
+    }
+
+    .row {
+      display: none;
+    }
+
+    .panel {
+      background: var(--c-panel-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .panel h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: var(--c-muted);
+    }
+
+    canvas {
+      background: var(--c-canvas-bg);
+      border: 1px solid var(--c-border-strong);
+      border-radius: 0px;
+      image-rendering: pixelated;
+      display: block;
+    }
+
+    .mini {
+      font-size: 12px;
+      color: var(--c-muted2);
+      margin: 0 0 6px 2px;
+    }
+
+    .paletteWrap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .paletteTopRow {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .paletteGrid {
+      display: grid;
+      grid-template-columns: repeat(8, 26px);
+      gap: 2px;
+      align-items: center;
+    }
+
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      border: 1px solid var(--c-border-strong);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .swatch.selected {
+      outline: 2px solid rgba(0, 255, 255, 0.9);
+      outline-offset: 0px;
+    }
+
+    .swatch .indexLabel {
+      position: absolute;
+      right: 4px;
+      bottom: 2px;
+      font-size: 10px;
+      color: var(--c-text);
+      opacity: 0.8;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+      pointer-events: none;
+    }
+
+    .swatch.transparent::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(45deg, var(--c-panel-bg2) 25%, transparent 25%) 0 0/10px 10px,
+        linear-gradient(45deg, transparent 75%, var(--c-panel-bg2) 75%) 0 0/10px 10px,
+        linear-gradient(45deg, transparent 25%, var(--c-card-bg) 25%) 5px 5px/10px 10px,
+        linear-gradient(45deg, var(--c-card-bg) 75%, transparent 75%) 5px 5px/10px 10px;
+    }
+
+    .swatch .fill {
+      position: absolute;
+      inset: 0;
+    }
+
+    .paletteEditor {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 4px 10px 4px 10px;
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      background: var(--c-panel-bg2);
+    }
+
+    .paletteEditor .title {
+      font-size: 12px;
+      color: var(--c-muted);
+      margin-right: 4px;
+    }
+
+    .danger {
+      border-color: var(--c-danger-border);
+    }
+
+    .layersWrap {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .layerPanel {
+      background: var(--c-panel-bg2);
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      padding: 4px;
+      min-width: 380px;
+    }
+
+    .layerHeader {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .layerTitle {
+      font-size: 13px;
+      color: var(--c-text-soft);
+      margin: 0;
+    }
+
+    .partsWrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .partPanel {
+      background: var(--c-panel-bg3);
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      padding: 4px;
+    }
+
+    .partHeader {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .partTitle {
+      font-size: 13px;
+      color: var(--c-text-soft);
+      margin: 0;
+    }
+
+    .partHeaderRight {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .partActions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .partActions button {
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .faces {
+      display: grid;
+      grid-template-columns: repeat(4, max-content);
+      grid-auto-rows: max-content;
+      gap: 4px;
+      align-items: start;
+      margin-top: 10px;
+    }
+
+    .faceCard {
+      background: var(--c-card-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 4px;
+      padding: 0px;
+    }
+
+
+    /* Faceキャンバスのレイヤ構成（ピクセル＋グリッド） */
+    .faceCanvasStack {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+    }
+
+    .faceCanvasStack canvas {
+      position: absolute;
+      inset: 0;
+    }
+
+    .faceGridCanvas {
+      background: transparent !important;
+      border: none !important;
+      pointer-events: none;
+    }
+
+    .faceTitle {
+      font-size: 12px;
+      color: var(--c-muted);
+      margin: 0 0 8px 2px;
+    }
+
+    .faceActions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .faceActions button {
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .previewControls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 8px 0 0 0;
+    }
+
+    .previewControls label {
+      margin: 0;
+    }
+
+    .previewPartsControls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 8px 0 0 0;
+    }
+
+    .previewPartsControls label {
+      margin: 0;
+    }
+
+    input[type=number] {
+      text-align: right;
+      border-radius: 4px;
+      padding: 4px;
+    }
+
+    input[type=color] {
+      border-radius: 0;
+      padding: 0;
+      height: 2em;
+    }
+
+    #tmpSaveBtn.dirty {
+      outline: 2px solid var(--c-dirty-outline);
+    }
+
+    #tmpSaveBtn {
+      outline: 2px solid var(--c-border-strong);
+    }
+
+    header .model-type {
+      margin-left: 12px;
+    }
+
+    header .model-type label {
+      margin-right: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.0.0</span>
+
+    <span class="model-type">
+      <label><input type="radio" name="modelType" id="modelTypeStandard" value="standard" checked />standard</label>
+      <label><input type="radio" name="modelType" id="modelTypeSlim" value="slim" />slim</label>
+    </span>
+
+    <button id="newBtn">新規作成</button>
+    <label>PNG読み込み: <input id="fileInp" type="file" accept="image/png" /></label>
+    <button id="saveBtn">PNG書き出し</button>
+
+    <button id="tmpSaveBtn">一時保存</button>
+
+    <label>パレット読込: <input id="paletteFileInp" type="file" accept="image/png" /></label>
+
+    <label>ズーム:
+      <input id="faceZoomInp" type="number" min="8" max="32" step="1" value="16" style="width:4em" />
+    </label>
+    <label><input id="gridChk" type="checkbox" checked />グリッド</label>
+    <details>
+      <summary>操作説明</summary>
+
+      <h3>新規作成</h3>
+      編集中のデータを捨ててすべて透明で塗りつぶしたスキン画像に置き換えます。
+
+      <h3>PNG読み込み</h3>
+      パソコン上のスキンPNG画像ファイルを指定して読み込みます。
+
+      <h3>PNG書き出し</h3>
+      編集中のデータをスキンPNG画像ファイルとして保存します。
+
+      <h3>ズーム</h3>
+      スキン画像の編集領域の表示倍率を設定します。デフォルト値は16倍拡大です。8~32倍の間で設定できます。
+
+      <h3>編集領域</h3>
+      <ul>
+        <li>本体と外殻のスキン編集領域にわかれています。</li>
+        <li>パーツ毎にサイコロ展開図のように6面を展開しています。</li>
+        <li>左クリック: ペン</li>
+        <li>右クリック: スポイト</li>
+        <li>消しゴム機能はありません。代わりに0番の色（透明）を使ってください。</li>
+      </ul>
+
+      <h3>カラーパレット</h3>
+      <ul>
+        <li>0番は透明（消しゴム相当）</li>
+        <li>色ボタンをクリックすると、その色を選択し、同時に編集できます。</li>
+        <li>PNGファイルを読み込むと自動でカラーパレットを構成しますが、色の並び順は復元できません。</li>
+        <li>削除した色は0番（透明）に置き換わります。</li>
+      </ul>
+
+      <h3>3Dプレビュー</h3>
+      <ul>
+        <li>マウスのドラッグで回転</li>
+        <li>マウスのホイールでズームイン／ズームアウト</li>
+      </ul>
+      <h3>テクスチャ全体（表示のみ）</h3>
+      この領域は表示用なので編集できません。実際のスキン画像を4倍で表示します。
+    </details>
+
+  </header>
+
+  <div class="layout">
+    <div class="pane left">
+      <div class="panel">
+        <h3>3Dプレビュー</h3>
+        <canvas id="glCanvas" width="320" height="420" style="image-rendering:auto;"></canvas>
+
+        <div class="previewControls">
+          <label><input id="autoRotateChk" type="checkbox" />自動回転</label>
+          <button id="resetCamBtn">リセット</button>
+          <label>背景 <input id="bgInp" type="color" value="#0b0b0b" /></label>
+          <label>ライティング影響度 <input id="lightInp" type="number" min="0" max="1" step="0.05" value="0.5" style="width:4em" /></label>
+        </div>
+
+        <div id="partVisWrap" class="previewPartsControls">
+          <label><input id="showBaseChk" type="checkbox" checked />本体</label>
+          <label><input id="showOuterChk" type="checkbox" checked />外殻</label>
+          <label><input id="vis_head" type="checkbox" checked />頭</label>
+          <label><input id="vis_body" type="checkbox" checked />胴体</label>
+          <label><input id="vis_right_arm" type="checkbox" checked />右腕</label>
+          <label><input id="vis_left_arm" type="checkbox" checked />左腕</label>
+          <label><input id="vis_right_leg" type="checkbox" checked />右脚</label>
+          <label><input id="vis_left_leg" type="checkbox" checked />左脚</label>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>テクスチャ全体（表示のみ）</h3>
+        <canvas id="viewCanvas"></canvas>
+        <canvas id="baseCanvas" width="64" height="64" style="display:none"></canvas>
+        <canvas id="outerCanvas" width="64" height="64" style="display:none"></canvas>
+        <canvas id="exportCanvas" width="64" height="64" style="display:none"></canvas>
+      </div>
+    </div>
+    <div class="pane middle">
+      <div class="panel">
+        <h3>編集領域（本体レイヤー / 外殻レイヤー）</h3>
+        <div id="layersContainer" class="layersWrap"></div>
+      </div>
+    </div>
+    <div class="pane right">
+      <div class="panel" style="max-width:240px;">
+        <h3>カラーパレット</h3>
+        <div class="paletteWrap">
+          <div class="paletteTopRow">
+            <button id="paletteAddBtn">色を追加</button>
+            <button id="palettePurgeUnusedBtn">未使用色を削除</button>
+            <div class="mini" id="activeColorText" style="margin:0;"></div>
+          </div>
+
+          <div id="paletteGrid" class="paletteGrid"></div>
+
+          <div id="paletteEditor" class="paletteEditor">
+            <label>色の編集 <input id="palColorInp" type="color" value="#ffffff" /></label> <button id="palApplyBtn">反映</button>
+            <button id="palDeleteBtn" class="danger">削除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+      /* 0) 定数・データ定義
+       * - このエディターは「64x64 のスキン画像」を編集対象とする。
+       * - 以降のテーブルは、Minecraft のUV配置（スキン画像上の座標）をそのまま表す。
+       */
+
+      const SKIN_SIZE = Object.freeze({ w: 64, h: 64 });
+      const WHOLE_VIEW_ZOOM = 4;
+
+      const CUBE_NET_PLACEMENT = Object.freeze({
+        top: { row: 1, col: 2 },
+        right: { row: 2, col: 1 },
+        front: { row: 2, col: 2 },
+        left: { row: 2, col: 3 },
+        back: { row: 2, col: 4 },
+        bottom: { row: 3, col: 2 },
+      });
+      const FACE_ORDER = Object.freeze(['top', 'right', 'front', 'left', 'back', 'bottom']);
+
+      const UNRESOLVED_INDEX = -1; /* インデックスマップ未解決値：RGBA→パレット番号の解決がまだ行われていないピクセルを示す。 */
+
+      const LAYERS = Object.freeze([
+        { id: 'base', label: '本体（ベース）' },
+        { id: 'outer', label: '外殻（オーバーレイ）' },
+      ]);
+
+      const MIRROR_PARTS = Object.freeze({
+        right_arm: { opposite: 'left_arm', label: '左腕にコピー（反転）' },
+        left_arm: { opposite: 'right_arm', label: '右腕にコピー（反転）' },
+        right_leg: { opposite: 'left_leg', label: '左脚にコピー（反転）' },
+        left_leg: { opposite: 'right_leg', label: '右脚にコピー（反転）' },
+      });
+
+      const MIRROR_FACE_MAP = Object.freeze({
+        top: { dst: 'top', flipX: true },
+        bottom: { dst: 'bottom', flipX: true },
+        front: { dst: 'front', flipX: true },
+        back: { dst: 'back', flipX: true },
+        right: { dst: 'left', flipX: true },
+        left: { dst: 'right', flipX: true },
+      });
+
+      const STANDARD_getPartTemplates = () => Object.freeze([
+        {
+          id: 'head',
+          label: '頭',
+          enableLeftRightFlipCopy: true,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 8, y: 0, w: 8, h: 8 },
+              { id: 'right', label: 'キャラ右 (Right)', x: 0, y: 8, w: 8, h: 8 },
+              { id: 'front', label: '前 (Front)', x: 8, y: 8, w: 8, h: 8 },
+              { id: 'left', label: 'キャラ左 (Left)', x: 16, y: 8, w: 8, h: 8 },
+              { id: 'back', label: '後 (Back)', x: 24, y: 8, w: 8, h: 8 },
+              { id: 'bottom', label: '下 (Bottom)', x: 16, y: 0, w: 8, h: 8 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 40, y: 0, w: 8, h: 8 },
+              { id: 'right', label: 'キャラ右 (Right)', x: 32, y: 8, w: 8, h: 8 },
+              { id: 'front', label: '前 (Front)', x: 40, y: 8, w: 8, h: 8 },
+              { id: 'left', label: 'キャラ左 (Left)', x: 48, y: 8, w: 8, h: 8 },
+              { id: 'back', label: '後 (Back)', x: 56, y: 8, w: 8, h: 8 },
+              { id: 'bottom', label: '下 (Bottom)', x: 48, y: 0, w: 8, h: 8 },
+            ]),
+          }),
+        },
+        {
+          id: 'body',
+          label: '体（胴）',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 20, y: 16, w: 8, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 16, y: 20, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 20, y: 20, w: 8, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 28, y: 20, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 32, y: 20, w: 8, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 28, y: 16, w: 8, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 20, y: 32, w: 8, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 16, y: 36, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 20, y: 36, w: 8, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 28, y: 36, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 32, y: 36, w: 8, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 28, y: 32, w: 8, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'right_arm',
+          label: '右腕',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 44, y: 16, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 40, y: 20, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 44, y: 20, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 48, y: 20, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 52, y: 20, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 48, y: 16, w: 4, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 44, y: 32, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 40, y: 36, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 44, y: 36, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 48, y: 36, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 52, y: 36, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 48, y: 32, w: 4, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'left_arm',
+          label: '左腕',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 36, y: 48, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 32, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 36, y: 52, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 40, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 44, y: 52, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 40, y: 48, w: 4, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 52, y: 48, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 48, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 52, y: 52, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 56, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 60, y: 52, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 56, y: 48, w: 4, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'right_leg',
+          label: '右脚',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 4, y: 16, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 0, y: 20, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 4, y: 20, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 8, y: 20, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 12, y: 20, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 8, y: 16, w: 4, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 4, y: 32, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 0, y: 36, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 4, y: 36, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 8, y: 36, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 12, y: 36, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 8, y: 32, w: 4, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'left_leg',
+          label: '左脚',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 20, y: 48, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 16, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 20, y: 52, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 24, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 28, y: 52, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 24, y: 48, w: 4, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 4, y: 48, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 0, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 4, y: 52, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 8, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 12, y: 52, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 8, y: 48, w: 4, h: 4 },
+            ]),
+          }),
+        },
+      ]);
+
+      const SLIM_getPartTemplates = () => Object.freeze([
+        {
+          id: 'head',
+          label: '頭',
+          enableLeftRightFlipCopy: true,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 8, y: 0, w: 8, h: 8 },
+              { id: 'right', label: 'キャラ右 (Right)', x: 0, y: 8, w: 8, h: 8 },
+              { id: 'front', label: '前 (Front)', x: 8, y: 8, w: 8, h: 8 },
+              { id: 'left', label: 'キャラ左 (Left)', x: 16, y: 8, w: 8, h: 8 },
+              { id: 'back', label: '後 (Back)', x: 24, y: 8, w: 8, h: 8 },
+              { id: 'bottom', label: '下 (Bottom)', x: 16, y: 0, w: 8, h: 8 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 40, y: 0, w: 8, h: 8 },
+              { id: 'right', label: 'キャラ右 (Right)', x: 32, y: 8, w: 8, h: 8 },
+              { id: 'front', label: '前 (Front)', x: 40, y: 8, w: 8, h: 8 },
+              { id: 'left', label: 'キャラ左 (Left)', x: 48, y: 8, w: 8, h: 8 },
+              { id: 'back', label: '後 (Back)', x: 56, y: 8, w: 8, h: 8 },
+              { id: 'bottom', label: '下 (Bottom)', x: 48, y: 0, w: 8, h: 8 },
+            ]),
+          }),
+        },
+        {
+          id: 'body',
+          label: '体（胴）',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 20, y: 16, w: 8, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 16, y: 20, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 20, y: 20, w: 8, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 28, y: 20, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 32, y: 20, w: 8, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 28, y: 16, w: 8, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 20, y: 32, w: 8, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 16, y: 36, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 20, y: 36, w: 8, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 28, y: 36, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 32, y: 36, w: 8, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 28, y: 32, w: 8, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'right_arm',
+          label: '右腕',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 44, y: 16, w: 3, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 40, y: 20, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 44, y: 20, w: 3, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 47, y: 20, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 51, y: 20, w: 3, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 47, y: 16, w: 3, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 44, y: 32, w: 3, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 40, y: 36, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 44, y: 36, w: 3, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 47, y: 36, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 51, y: 36, w: 3, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 47, y: 32, w: 3, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'left_arm',
+          label: '左腕',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 36, y: 48, w: 3, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 32, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 36, y: 52, w: 3, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 39, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 43, y: 52, w: 3, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 39, y: 48, w: 3, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 52, y: 48, w: 3, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 48, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 52, y: 52, w: 3, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 55, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 59, y: 52, w: 3, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 55, y: 48, w: 3, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'right_leg',
+          label: '右脚',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 4, y: 16, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 0, y: 20, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 4, y: 20, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 8, y: 20, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 12, y: 20, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 8, y: 16, w: 4, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 4, y: 32, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 0, y: 36, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 4, y: 36, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 8, y: 36, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 12, y: 36, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 8, y: 32, w: 4, h: 4 },
+            ]),
+          }),
+        },
+        {
+          id: 'left_leg',
+          label: '左脚',
+          enableLeftRightFlipCopy: false,
+          facesByLayer: Object.freeze({
+            base: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 20, y: 48, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 16, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 20, y: 52, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 24, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 28, y: 52, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 24, y: 48, w: 4, h: 4 },
+            ]),
+            outer: Object.freeze([
+              { id: 'top', label: '上 (Top)', x: 4, y: 48, w: 4, h: 4 },
+              { id: 'right', label: '右 (Right)', x: 0, y: 52, w: 4, h: 12 },
+              { id: 'front', label: '前 (Front)', x: 4, y: 52, w: 4, h: 12 },
+              { id: 'left', label: '左 (Left)', x: 8, y: 52, w: 4, h: 12 },
+              { id: 'back', label: '後 (Back)', x: 12, y: 52, w: 4, h: 12 },
+              { id: 'bottom', label: '下 (Bottom)', x: 8, y: 48, w: 4, h: 4 },
+            ]),
+          }),
+        },
+      ]);
+      /* 1) モデル種別（standard / slim）
+       * - standard と slim は「腕の太さ」などUVの違いを持つ。
+       * - ここでは「現在どちらのUVテーブルで編集するか」を状態として保持する。
+       */
+
+      let CURRENT_MODEL_TYPE = 'standard';
+      function getPartTemplates() { return (CURRENT_MODEL_TYPE === 'slim') ? SLIM_getPartTemplates() : STANDARD_getPartTemplates(); }
+      /* 2) DOM参照の集約
+       * - getElementById の散在を防ぎ、参照漏れやIDタイポを早期に検出する。
+       * - domRefs は「UI部品のハンドル」をまとめた読み取り専用コンテナ。
+       * =========================================================
+       */
+
+
+      const domRefs = (() => {
+        const byId = (id) => {
+          const el = document.getElementById(id);
+          if (el === null) {
+            throw new Error(`Element not found: #${id}`);
+          }
+          return el;
+        };
+        return Object.freeze({
+          newBtn: byId('newBtn'),
+          fileInp: (byId('fileInp')),
+          paletteFileInp: (byId('paletteFileInp')),
+          saveBtn: byId('saveBtn'),
+
+          tempSaveButton: byId('tmpSaveBtn'),
+
+          modelTypeStandard: (byId('modelTypeStandard')),
+          modelTypeSlim: (byId('modelTypeSlim')),
+          faceZoomInp: (byId('faceZoomInp')),
+          gridChk: (byId('gridChk')),
+
+          paletteAddBtn: byId('paletteAddBtn'),
+          palettePurgeUnusedBtn: byId('palettePurgeUnusedBtn'),
+          paletteGrid: byId('paletteGrid'),
+          activeColorText: byId('activeColorText'),
+
+          palColorInp: (byId('palColorInp')), palApplyBtn: byId('palApplyBtn'),
+          palDeleteBtn: byId('palDeleteBtn'),
+
+          layersContainer: byId('layersContainer'),
+
+          viewCanvas: (byId('viewCanvas')),
+          baseCanvas: (byId('baseCanvas')),
+          outerCanvas: (byId('outerCanvas')),
+          exportCanvas: (byId('exportCanvas')),
+
+          glCanvas: (byId('glCanvas')),
+          autoRotateChk: (byId('autoRotateChk')),
+          showBaseChk: (byId('showBaseChk')),
+          showOuterChk: (byId('showOuterChk')),
+          lightInp: (byId('lightInp')),
+          bgInp: (byId('bgInp')),
+          resetCamBtn: byId('resetCamBtn'),
+          partVisWrap: byId('partVisWrap'),
+        });
+      })();
+
+      function _setDirtyState(isDirty) {
+        editorState.isDirty = isDirty;
+        domRefs.tempSaveButton.classList.toggle('dirty', isDirty);
+        return;
+      }
+
+      function _markDirty() {
+        _setDirtyState(true);
+        return;
+      }
+      /* 4) エディター状態（単一の信頼できる状態）
+       * - UI/描画/保存が参照する中心状態。
+       * - 状態変更時は、基本的に「描画キューに積む」ことで画面更新を行う。
+       */
+      const editorState = {
+        isDirty: false,
+        faceZoom: clampInt(parseInt(domRefs.faceZoomInp.value, 10), 8, 32),
+        showGrid: !!domRefs.gridChk.checked,
+        palette: ([{ r: 0, g: 0, b: 0, a: 0 }]),
+        selectedPaletteIndex: 0,
+        editingPaletteIndex: 0,
+
+        pixelIndexByLayer: ({
+          base: new Int16Array(SKIN_SIZE.w * SKIN_SIZE.h),
+          outer: new Int16Array(SKIN_SIZE.w * SKIN_SIZE.h),
+        }),
+      };
+      /* 3) 一時保存（localStorage）
+       * - ブラウザリロード/クラッシュでも復旧できるよう、編集中の状態を退避する。
+       * - ここで言う「dirty」は、最後に一時保存した内容との差分がある状態を指す。
+       */
+      const TEMP_SAVE_LOCAL_STORAGE_KEY = 'mc_skin_editor_tmp_save_v1';
+
+      const _buildTempSavePayload = () => {
+        return {
+          version: 1,
+          savedAtUnixMs: Date.now(),
+          modelType: CURRENT_MODEL_TYPE,
+          palette: editorState.palette,
+          selectedPaletteIndex: editorState.selectedPaletteIndex,
+          editingPaletteIndex: editorState.editingPaletteIndex,
+          pixelIndexByLayer: {
+            base: Array.from(editorState.pixelIndexByLayer.base),
+            outer: Array.from(editorState.pixelIndexByLayer.outer),
+          },
+        };
+      };
+
+      const _saveToLocalStorage = () => {
+        const payload = _buildTempSavePayload();
+        try {
+          localStorage.setItem(TEMP_SAVE_LOCAL_STORAGE_KEY, JSON.stringify(payload));
+          return true;
+        } catch (e) {
+          console.error(e);
+          return false;
+        }
+      };
+
+
+      const _loadFromLocalStorage = () => {
+        const raw = (() => {
+          try {
+            return localStorage.getItem(TEMP_SAVE_LOCAL_STORAGE_KEY);
+          } catch (e) {
+            return null;
+          }
+        })();
+        if (raw === null) {
+          return false;
+        }
+
+        const payload = (() => {
+          try {
+            return JSON.parse(raw);
+          } catch (e) {
+            return null;
+          }
+        })();
+        if (payload === null) {
+          return false;
+        }
+        if (payload.version !== 1) {
+          return false;
+        }
+        if (!payload.pixelIndexByLayer || !payload.pixelIndexByLayer.base || !payload.pixelIndexByLayer.outer) {
+          return false;
+        }
+
+        const expectedLen = SKIN_SIZE.w * SKIN_SIZE.h;
+
+        if (payload.modelType === 'standard' || payload.modelType === 'slim') {
+          CURRENT_MODEL_TYPE = payload.modelType;
+        }
+
+        if (!Array.isArray(payload.palette) || payload.palette.length === 0) {
+          return false;
+        }
+        editorState.palette = payload.palette.map((c) => ({
+          r: clampInt(c.r | 0, 0, 255),
+          g: clampInt(c.g | 0, 0, 255),
+          b: clampInt(c.b | 0, 0, 255),
+          a: clampInt(c.a | 0, 0, 255),
+        }));
+
+        const baseArr = payload.pixelIndexByLayer.base;
+        const outerArr = payload.pixelIndexByLayer.outer;
+        if (!Array.isArray(baseArr) || !Array.isArray(outerArr)) {
+          return false;
+        }
+        if (baseArr.length !== expectedLen || outerArr.length !== expectedLen) {
+          return false;
+        }
+
+        for (let pixelIndex = 0; pixelIndex < expectedLen; pixelIndex++) {
+          editorState.pixelIndexByLayer.base[pixelIndex] = baseArr[pixelIndex] | 0;
+          editorState.pixelIndexByLayer.outer[pixelIndex] = outerArr[pixelIndex] | 0;
+        }
+
+        /* 選択中インデックスの復元
+         * 保存データが古かったりパレット長が変化しても破綻しないよう、範囲内にクランプして復元する。
+         */
+        editorState.selectedPaletteIndex = clampInt(payload.selectedPaletteIndex | 0, 0, editorState.palette.length - 1);
+        editorState.editingPaletteIndex = clampInt(payload.editingPaletteIndex | 0, 0, editorState.palette.length - 1);
+
+        _setDirtyState(false);
+        return true;
+      };
+
+      const contexts = (() => {
+        const view = domRefs.viewCanvas.getContext('2d', { alpha: false });
+        if (!view) {
+          throw new Error('2D context unavailable: viewCanvas');
+        }
+
+        const base = domRefs.baseCanvas.getContext('2d');
+        if (!base) {
+          throw new Error('2D context unavailable: baseCanvas');
+        }
+
+        const outer = domRefs.outerCanvas.getContext('2d');
+        if (!outer) {
+          throw new Error('2D context unavailable: outerCanvas');
+        }
+
+        const exportCtx = domRefs.exportCanvas.getContext('2d');
+        if (!exportCtx) {
+          throw new Error('2D context unavailable: exportCanvas');
+        }
+
+        return Object.freeze({ view, base, outer, export: exportCtx });
+      })();
+
+      function getLayerCanvas(layerId) {
+        if (layerId === 'base') {
+          return domRefs.baseCanvas;
+        }
+        if (layerId === 'outer') {
+          return domRefs.outerCanvas;
+        }
+        throw new Error(`Unknown layerId: ${layerId}`);
+      }
+      function getLayerCtx(layerId) {
+        if (layerId === 'base') {
+          return contexts.base;
+        }
+        if (layerId === 'outer') {
+          return contexts.outer;
+        }
+        throw new Error(`Unknown layerId: ${layerId}`);
+      }
+
+      const outerMask = buildOuterMask();
+      function buildOuterMask() {
+        const mask = new Uint8Array(SKIN_SIZE.w * SKIN_SIZE.h);
+        const markRect = (x, y, w, h) => {
+          for (let yCoord = y; yCoord < y + h; yCoord++) {
+            for (let xCoord = x; xCoord < x + w; xCoord++) {
+              if (xCoord < 0 || yCoord < 0 || xCoord >= SKIN_SIZE.w || yCoord >= SKIN_SIZE.h) {
+                continue;
+              }
+              mask[yCoord * SKIN_SIZE.w + xCoord] = 1;
+            }
+          }
+        };
+        for (const part of getPartTemplates()) {
+          for (const f of part.facesByLayer.outer) {
+            markRect(f.x, f.y, f.w, f.h);
+          }
+        }
+        return mask;
+      }
+      function isOuterCoord(x, y) { return outerMask[y * SKIN_SIZE.w + x] === 1; }
+
+      const faceViews = new Map();
+
+      let preview3d = init3DPreview(domRefs.glCanvas);
+
+      /* レンダリングキュー
+       * 「すぐ描く」と「まとめて描く」を混在させると順序依存バグを生むため、描画要求はここに集約してフラッシュする。
+       */
+      const renderQueue = {
+        pendingPixels: [],
+        dirtyFaceKeys: new Set(),
+        dirtyFaceLocalRects: new Map(),
+        dirtyWhole: false,
+        scheduled: false,
+      };
+
+      const faceTransparencyCache = new Map();
+
+
+      function _faceKey(view) { return `${view.layerId}:${view.partId}:${view.face.id}`; }
+
+      function enqueuePixelOp(view, sx, sy, paletteIndex) {
+        /* editorState update must be synchronous (for eyedropper etc.) */
+        setPixelIndex(view.layerId, sx, sy, paletteIndex);
+
+        renderQueue.pendingPixels.push({ layerId: view.layerId, x: sx, y: sy, paletteIndex });
+
+        const fk = _faceKey(view);
+        renderQueue.dirtyFaceKeys.add(fk);
+
+        /* dirty矩形（ローカル座標）
+         * フェイス内の更新範囲を追跡し、必要最小限の領域だけ再描画するために使う。
+         * （グリッド表示やプレビュー更新のコストを抑える目的）
+         */
+        const lx = sx - view.face.x;
+        const ly = sy - view.face.y;
+        if (lx >= 0 && ly >= 0 && lx < view.face.w && ly < view.face.h) {
+          const prev = renderQueue.dirtyFaceLocalRects.get(fk);
+          if (!prev) {
+            renderQueue.dirtyFaceLocalRects.set(fk, { minX: lx, minY: ly, maxX: lx, maxY: ly });
+          } else {
+            prev.minX = Math.min(prev.minX, lx);
+            prev.minY = Math.min(prev.minY, ly);
+            prev.maxX = Math.max(prev.maxX, lx);
+            prev.maxY = Math.max(prev.maxY, ly);
+          }
+        }
+
+        renderQueue.dirtyWhole = true;
+        requestRenderFlush();
+      }
+
+      function requestRenderFlush() {
+        if (renderQueue.scheduled) {
+          return;
+        }
+        renderQueue.scheduled = true;
+        requestAnimationFrame(() => {
+          renderQueue.scheduled = false;
+          flushRenderQueue();
+        });
+      }
+
+      function flushRenderQueueNow() {
+        if (renderQueue.pendingPixels.length === 0 && renderQueue.dirtyFaceKeys.size === 0 && !renderQueue.dirtyWhole) {
+          return;
+        }
+        renderQueue.scheduled = false;
+        flushRenderQueue();
+      }
+
+      function flushRenderQueue() {
+        if (renderQueue.pendingPixels.length === 0 && renderQueue.dirtyFaceKeys.size === 0 && !renderQueue.dirtyWhole) {
+          return;
+        }
+
+        /* 1) ペンディング描画の適用
+         * 連続ストローク中の更新点を一旦バッファし、レイヤーごとにまとめてget/putを1回に抑える。
+         * CanvasのImageData往復が律速になりやすいため、バッチ適用にしている。
+         */
+        const pending = renderQueue.pendingPixels;
+        renderQueue.pendingPixels = [];
+
+        const layerBuffers = {};
+
+        for (const op of pending) {
+          if (op.x < 0 || op.y < 0 || op.x >= SKIN_SIZE.w || op.y >= SKIN_SIZE.h) {
+            continue;
+          }
+
+          let buf = layerBuffers[op.layerId];
+          if (!buf) {
+            const layerCtx = getLayerCtx(op.layerId);
+            const img = layerCtx.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+            buf = layerBuffers[op.layerId] = { img, data: img.data };
+          }
+
+          const di = (op.y * SKIN_SIZE.w + op.x) * 4;
+
+          if (op.paletteIndex === 0) {
+            buf.data[di + 0] = 0;
+            buf.data[di + 1] = 0;
+            buf.data[di + 2] = 0;
+            buf.data[di + 3] = 0;
+            continue;
+          }
+
+          const c = editorState.palette[op.paletteIndex];
+          if (!c) {
+            buf.data[di + 3] = 0;
+            continue;
+          }
+
+          buf.data[di + 0] = c.r;
+          buf.data[di + 1] = c.g;
+          buf.data[di + 2] = c.b;
+          buf.data[di + 3] = c.a;
+        }
+
+        for (const layerId of Object.keys(layerBuffers)) {
+          const layerCtx = getLayerCtx(layerId);
+          layerCtx.putImageData(layerBuffers[layerId].img, 0, 0);
+        }
+
+        /* 2) Redraw only dirty face canvases */
+        for (const key of renderQueue.dirtyFaceKeys) {
+          const view = faceViews.get(key);
+          if (!view) {
+            continue;
+          }
+
+          /* update transparency cache for this face (small scan; max 8x12) */
+          faceTransparencyCache.set(key, computeFaceHasTransparency(view));
+
+          const rect = renderQueue.dirtyFaceLocalRects.get(key) || null;
+          renderFace(view, rect);
+        }
+        renderQueue.dirtyFaceKeys.clear();
+        renderQueue.dirtyFaceLocalRects.clear();
+
+        /* 3) Whole view + export + 3D texture only when needed */
+        if (renderQueue.dirtyWhole) {
+          renderWholeView();
+          updateExportCanvasComposite();
+          preview3d.updateTextureFromCanvas(domRefs.exportCanvas);
+          renderQueue.dirtyWhole = false;
+        }
+      }
+
+      const restored = _loadFromLocalStorage();
+      buildEditors();
+      applyModelTypeToUi();
+      preview3d = init3DPreview(domRefs.glCanvas);
+      if (restored) {
+        rebuildAllLayerCanvasesFromIndexMap();
+        renderPalette();
+        setEditingPaletteIndex(editorState.editingPaletteIndex);
+        renderAll();
+      }
+      if (!restored) {
+        clearAllLayers();
+        _markDirty();
+        renderAll();
+        renderPalette();
+        setEditingPaletteIndex(0);
+      }
+      bindUiEvents();
+      bindPartVisibilityControls();
+
+      function bindUiEvents() {
+        domRefs.modelTypeStandard.addEventListener('change', () => { if (domRefs.modelTypeStandard.checked) setModelType('standard'); });
+        domRefs.modelTypeSlim.addEventListener('change', () => { if (domRefs.modelTypeSlim.checked) setModelType('slim'); });
+        domRefs.faceZoomInp.addEventListener('change', () => {
+          editorState.faceZoom = clampInt(parseInt(domRefs.faceZoomInp.value, 10), 8, 32);
+          resizeFaceCanvases();
+          renderAll();
+        });
+        domRefs.gridChk.addEventListener('change', () => {
+          editorState.showGrid = !!domRefs.gridChk.checked;
+
+          for (const view of faceViews.values()) {
+            view.gridCanvas.style.display = editorState.showGrid ? 'block' : 'none';
+            if (editorState.showGrid) {
+              view.gridDirty = true;
+            }
+          }
+
+          renderAll();
+        });
+        domRefs.newBtn.addEventListener('click', () => {
+          clearAllLayers(); _markDirty();
+          renderAll();
+        });
+
+        domRefs.tempSaveButton.addEventListener('click', () => {
+          const ok = _saveToLocalStorage();
+          if (ok) { _setDirtyState(false); }
+        });
+        domRefs.saveBtn.addEventListener('click', () => {
+          const a = document.createElement('a');
+          a.download = 'skin_64x64.png';
+          flushRenderQueueNow();
+          a.href = buildExportPngDataUrl();
+          a.click();
+        });
+
+        domRefs.fileInp.addEventListener('change', async () => {
+          const file = domRefs.fileInp.files && domRefs.fileInp.files[0] ? domRefs.fileInp.files[0] : null;
+          if (file === null) {
+            return;
+          }
+          await loadPngFile(file);
+          renderAll();
+          domRefs.fileInp.value = '';
+        });
+
+
+        domRefs.paletteFileInp.addEventListener('change', async () => {
+          const file = domRefs.paletteFileInp.files && domRefs.paletteFileInp.files[0] ? domRefs.paletteFileInp.files[0] : null;
+          if (file === null) {
+            return;
+          }
+          await loadPaletteOnlyPngFile(file);
+          domRefs.paletteFileInp.value = '';
+        });
+
+        domRefs.paletteAddBtn.addEventListener('click', () => {
+          const paletteIndex = appendPaletteColor({ r: 255, g: 255, b: 255, a: 255 });
+
+          selectPaletteIndex(paletteIndex);
+          setEditingPaletteIndex(paletteIndex);
+          renderPalette();
+        });
+
+        domRefs.palettePurgeUnusedBtn.addEventListener('click', () => {
+          purgeUnusedPaletteColors();
+        });
+        domRefs.palApplyBtn.addEventListener('click', () => {
+          const editedIndex = editorState.editingPaletteIndex;
+          const changed = applyPaletteEdit();
+          if (changed) { recolorPixelsForPaletteIndexAcrossLayers(editedIndex); renderAll(); }
+          renderPalette();
+        });
+
+        domRefs.palDeleteBtn.addEventListener('click', () => { deleteEditingPaletteColorAcrossLayers(); renderPalette(); });
+
+        domRefs.autoRotateChk.addEventListener('change', () => { preview3d.autoRotate = !!domRefs.autoRotateChk.checked; });
+
+        domRefs.showBaseChk.addEventListener('change', () => { preview3d.showBase = !!domRefs.showBaseChk.checked; });
+        domRefs.showOuterChk.addEventListener('change', () => { preview3d.showOuter = !!domRefs.showOuterChk.checked; });
+        domRefs.lightInp.addEventListener('change', () => {
+          preview3d.litMix = clampFloat(parseFloat(domRefs.lightInp.value), 0, 1);
+          domRefs.lightInp.value = String(preview3d.litMix);
+        });
+        domRefs.bgInp.addEventListener('change', () => { preview3d.bg = domRefs.bgInp.value; });
+
+        domRefs.resetCamBtn.addEventListener('click', () => { preview3d.resetCamera(); });
+      }
+
+
+      function bindPartVisibilityControls() {
+        const checkboxByPartId = {};
+
+        for (const part of getPartTemplates()) {
+          const elementId = `vis_${part.id}`;
+          const input = (document.getElementById(elementId));
+
+          if (input == null) {
+            continue;
+          }
+          if (!(input instanceof HTMLInputElement)) {
+            continue;
+          }
+
+          checkboxByPartId[part.id] = input;
+
+          if (preview3d.partVisible[part.id] == null) {
+            preview3d.partVisible[part.id] = true;
+          }
+          input.checked = !!preview3d.partVisible[part.id];
+
+          input.addEventListener('change', () => {
+            const checked = !!input.checked;
+            preview3d.partVisible[part.id] = checked;
+
+            /* 念のため、同一パーツに複数チェックボックスが存在する構成になっても同期できるようにする */
+            const sync = checkboxByPartId[part.id];
+            if (sync != null) {
+              sync.checked = checked;
+            }
+          });
+        }
+
+        /* プレビュー3Dのデフォルトを保証 */
+        for (const part of getPartTemplates()) {
+          if (preview3d.partVisible[part.id] == null) {
+            preview3d.partVisible[part.id] = true;
+          }
+        }
+
+        return;
+      }
+
+      function buildEditors() {
+        domRefs.layersContainer.innerHTML = '';
+        faceViews.clear();
+
+        for (const layer of LAYERS) {
+          const layerBox = document.createElement('div');
+          layerBox.className = 'layerPanel';
+
+          const layerHeader = document.createElement('div');
+          layerHeader.className = 'layerHeader';
+
+          const layerTitle = document.createElement('h4');
+          layerTitle.className = 'layerTitle';
+          layerTitle.textContent = layer.label;
+
+
+          layerHeader.appendChild(layerTitle);
+
+          const partsWrap = document.createElement('div');
+          partsWrap.className = 'partsWrap';
+
+          for (const part of getPartTemplates()) {
+            const partBox = document.createElement('div');
+            partBox.className = 'partPanel';
+
+            const header = document.createElement('div');
+            header.className = 'partHeader';
+
+            const title = document.createElement('h5');
+            title.className = 'partTitle';
+            title.textContent = part.label;
+
+            const rightBox = document.createElement('div');
+            rightBox.className = 'partHeaderRight';
+
+            const actions = document.createElement('div');
+            actions.className = 'partActions';
+
+            const mirrorSpec = MIRROR_PARTS[part.id];
+            if (mirrorSpec !== undefined) {
+              const btn = document.createElement('button');
+              btn.textContent = mirrorSpec.label;
+              btn.addEventListener('click', () => { copyPartFlipped(layer.id, part.id, mirrorSpec.opposite); });
+              actions.appendChild(btn);
+            }
+
+            const fillBtn = document.createElement('button');
+            fillBtn.textContent = '塗りつぶし';
+            fillBtn.addEventListener('click', () => { fillPart(layer.id, part.id); });
+            actions.appendChild(fillBtn);
+
+            rightBox.appendChild(actions);
+            header.appendChild(title);
+            header.appendChild(rightBox);
+
+            const grid = document.createElement('div');
+            grid.className = 'faces';
+
+            const faces = part.facesByLayer[layer.id];
+            for (const faceId of FACE_ORDER) {
+              const face = faces.find((f) => f.id === faceId);
+              if (!face) {
+                continue;
+              }
+
+              const placement = CUBE_NET_PLACEMENT[face.id];
+              if (!placement) {
+                continue;
+              }
+
+              const card = document.createElement('div');
+              card.className = 'faceCard';
+              card.style.gridRow = String(placement.row);
+              card.style.gridColumn = String(placement.col);
+
+              const t = document.createElement('div');
+              t.className = 'faceTitle';
+              t.textContent = face.label;
+
+
+              const stack = document.createElement('div');
+              stack.className = 'faceCanvasStack';
+
+              const canvas = document.createElement('canvas'); /* ピクセル描画レイヤー（実絵） */
+              canvas.width = face.w * editorState.faceZoom;
+              canvas.height = face.h * editorState.faceZoom;
+              canvas.addEventListener('contextmenu', (ev) => { ev.preventDefault(); });
+
+              const gridCanvas = document.createElement('canvas'); /* グリッド描画レイヤー（線のみ） */
+              gridCanvas.className = 'faceGridCanvas';
+              gridCanvas.width = canvas.width;
+              gridCanvas.height = canvas.height;
+
+              /* Stack sizing (CSS pixels) must match canvas bitmap size */
+              stack.style.width = String(canvas.width) + 'px';
+              stack.style.height = String(canvas.height) + 'px';
+
+              /* Order: pixels first, grid on top */
+              stack.appendChild(canvas);
+              stack.appendChild(gridCanvas);
+
+              const c = canvas.getContext('2d');
+              if (!c) {
+                throw new Error('2D context unavailable: face canvas');
+              }
+
+              const gc = gridCanvas.getContext('2d');
+              if (!gc) {
+                throw new Error('2D context unavailable: face grid canvas');
+              }
+
+              gridCanvas.style.display = editorState.showGrid ? 'block' : 'none';
+
+              const view = ({ layerId: layer.id, partId: part.id, face, canvas, contexts: c, gridCanvas, gridCtx: gc, gridDirty: true, drawing: false, lastPaintX: null, lastPaintY: null });
+              faceViews.set(`${layer.id}:${part.id}:${face.id}`, view);
+
+              installFacePointerHandlers(view);
+
+              card.appendChild(t);
+              card.appendChild(stack);
+              if (part.enableLeftRightFlipCopy && part.id === 'head' && (face.id === 'right' || face.id === 'left')) {
+                const actions = document.createElement('div');
+                actions.className = 'faceActions';
+
+                if (face.id === 'right') {
+                  const btn = document.createElement('button');
+                  btn.textContent = '左へコピー';
+                  btn.addEventListener('click', () => copyFaceFlipped(layer.id, part.id, 'right', layer.id, part.id, 'left'));
+                  actions.appendChild(btn);
+                }
+                if (face.id === 'left') {
+                  const btn = document.createElement('button');
+                  btn.textContent = '右へコピー';
+                  btn.addEventListener('click', () => copyFaceFlipped(layer.id, part.id, 'left', layer.id, part.id, 'right'));
+                  actions.appendChild(btn);
+                }
+
+                card.appendChild(actions);
+              }
+
+              grid.appendChild(card);
+            }
+
+            partBox.appendChild(header);
+            partBox.appendChild(grid);
+            partsWrap.appendChild(partBox);
+          }
+
+          layerBox.appendChild(layerHeader);
+          layerBox.appendChild(partsWrap);
+          domRefs.layersContainer.appendChild(layerBox);
+        }
+      }
+
+      function applyModelTypeToUi() {
+        domRefs.modelTypeStandard.checked = (CURRENT_MODEL_TYPE === 'standard');
+        domRefs.modelTypeSlim.checked = (CURRENT_MODEL_TYPE === 'slim');
+        return;
+      }
+
+      function setModelType(newType) {
+        if (newType !== 'standard' && newType !== 'slim') { return; }
+        if (CURRENT_MODEL_TYPE === newType) { return; }
+
+        CURRENT_MODEL_TYPE = newType;
+
+        /* 2D editors (canvas sizes / UV mapping) */
+        buildEditors();
+
+        /* 3D preview mesh + UV mapping */
+        preview3d = init3DPreview(domRefs.glCanvas);
+        applyModelTypeToUi();
+
+        /* Re-render everything (but do NOT mark dirty) */
+        renderAll();
+        return;
+      }
+
+
+      function resizeFaceCanvases() {
+        for (const view of faceViews.values()) {
+          const w = view.face.w * editorState.faceZoom;
+          const h = view.face.h * editorState.faceZoom;
+
+          view.canvas.width = w;
+          view.canvas.height = h;
+
+          view.gridCanvas.width = w;
+          view.gridCanvas.height = h;
+
+          const stack = view.canvas.parentElement;
+          if (stack && stack instanceof HTMLElement) {
+            stack.style.width = String(w) + 'px';
+            stack.style.height = String(h) + 'px';
+          }
+
+          view.gridDirty = true;
+        }
+      }
+
+
+      function installFacePointerHandlers(view) {
+        const canvas = view.canvas;
+
+        canvas.addEventListener('pointerdown', (ev) => {
+          canvas.setPointerCapture(ev.pointerId);
+
+          if (ev.button === 2) {
+            const p = getFacePixelFromEvent(view, ev);
+            if (p === null) {
+              return;
+            }
+            const sx = view.face.x + p.x;
+            const sy = view.face.y + p.y;
+
+            const paletteIndex = getPixelIndex(view.layerId, sx, sy);
+
+            if (paletteIndex === UNRESOLVED_INDEX) {
+              const rgba = readLayerPixelRGBA(view.layerId, sx, sy);
+              const ensured = ensureColorInPalette(rgba);
+              setPixelIndex(view.layerId, sx, sy, ensured);
+              selectPaletteIndex(ensured);
+              setEditingPaletteIndex(ensured);
+              renderPalette();
+              return;
+            }
+
+            selectPaletteIndex(paletteIndex);
+            setEditingPaletteIndex(paletteIndex);
+            renderPalette();
+            return;
+          }
+
+          if (ev.button === 0) {
+            view.drawing = true;
+            const p = getFacePixelFromEvent(view, ev);
+            if (p === null) {
+              return;
+            }
+
+            /* ドラッグ開始点
+             * moveイベントの補間に入る前でも、最初の1点を確実に描いて描き始めの抜けを防ぐ。
+             */
+            paintFacePixel(view, p.x, p.y);
+            view.lastPaintX = p.x;
+            view.lastPaintY = p.y;
+
+
+          }
+        });
+
+        canvas.addEventListener('pointermove', (ev) => {
+          if (!view.drawing) {
+            return;
+          }
+          if ((ev.buttons & 1) === 0) {
+            return;
+          }
+
+          const rect = view.canvas.getBoundingClientRect();
+          const inside =
+            ev.clientX >= rect.left && ev.clientX < rect.right &&
+            ev.clientY >= rect.top && ev.clientY < rect.bottom;
+
+          const p = getFacePixelFromEventClamped(view, ev);
+
+          const lx = view.lastPaintX;
+          const ly = view.lastPaintY;
+
+          if (typeof lx === 'number' && typeof ly === 'number') {
+            drawLineOnFace(view, lx, ly, p.x, p.y);
+          } else {
+            paintFacePixel(view, p.x, p.y);
+          }
+
+          view.lastPaintX = p.x;
+          view.lastPaintY = p.y;
+
+
+
+          /* キャンバス外に出た瞬間で描画を止める（境界までは描く） */
+          if (!inside) {
+            end(ev);
+          }
+        });
+
+        const end = (ev) => {
+          view.drawing = false;
+          view.lastPaintX = null;
+          view.lastPaintY = null;
+          try { canvas.releasePointerCapture(ev.pointerId); } catch (_) { }
+        };
+
+        canvas.addEventListener('pointerup', (ev) => {
+          if (view.drawing) {
+            const p = getFacePixelFromEventClamped(view, ev);
+
+            const lx = view.lastPaintX;
+            const ly = view.lastPaintY;
+
+            if (typeof lx === 'number' && typeof ly === 'number') {
+              drawLineOnFace(view, lx, ly, p.x, p.y);
+            } else {
+              paintFacePixel(view, p.x, p.y);
+            }
+
+
+          }
+          end(ev);
+        });
+
+        canvas.addEventListener('pointercancel', end);
+      }
+
+
+      function getFacePixelFromEvent(view, ev) {
+        const rect = view.canvas.getBoundingClientRect();
+        const x = Math.floor((ev.clientX - rect.left) / editorState.faceZoom);
+        const y = Math.floor((ev.clientY - rect.top) / editorState.faceZoom);
+        if (x < 0 || y < 0 || x >= view.face.w || y >= view.face.h) {
+          return null;
+        }
+        return { x, y };
+      }
+
+
+      function getFacePixelFromEventClamped(view, ev) {
+        const rect = view.canvas.getBoundingClientRect();
+        const fx = (ev.clientX - rect.left) / editorState.faceZoom;
+        const fy = (ev.clientY - rect.top) / editorState.faceZoom;
+        const x = clampInt(Math.floor(fx), 0, view.face.w - 1);
+        const y = clampInt(Math.floor(fy), 0, view.face.h - 1);
+        return { x, y };
+      }
+
+      function paintFacePixel(view, localX, localY) {
+        const sx = view.face.x + localX;
+        const sy = view.face.y + localY;
+        const index = editorState.selectedPaletteIndex;
+        enqueuePixelOp(view, sx, sy, index);
+      }
+
+      function drawLineOnFace(view, x0, y0, x1, y1) {
+        /* 線分補間（Bresenham）
+         * 速いドラッグでも線が途切れないよう、前回点→今回点の間を整数格子で補間して塗る。
+         */
+        let dx = Math.abs(x1 - x0);
+        let dy = Math.abs(y1 - y0);
+        const sx = (x0 < x1) ? 1 : -1;
+        const sy = (y0 < y1) ? 1 : -1;
+        let err = dx - dy;
+
+        while (true) {
+          paintFacePixel(view, x0, y0);
+          if (x0 === x1 && y0 === y1) {
+            break;
+          }
+          const e2 = err * 2;
+          if (e2 > -dy) { err -= dy; x0 += sx; }
+          if (e2 < dx) { err += dx; y0 += sy; }
+        }
+      }
+
+
+      function fillPart(layerId, partId) {
+        const part = getPartTemplates().find((p) => p.id === partId);
+        if (!part) {
+          return;
+        }
+
+        const faces = part.facesByLayer[layerId];
+        if (!faces) {
+          return;
+        }
+
+        const paletteIndex = clampPaletteIndex(editorState.selectedPaletteIndex);
+
+        const layerCtx = getLayerCtx(layerId);
+        const img = layerCtx.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+        const data = img.data;
+        const map = editorState.pixelIndexByLayer[layerId];
+
+        const c = (paletteIndex === 0) ? null : (editorState.palette[paletteIndex] ?? null);
+
+        for (const face of faces) {
+          for (let yOffset = 0; yOffset < face.h; yOffset++) {
+            for (let xOffset = 0; xOffset < face.w; xOffset++) {
+              const x = face.x + xOffset;
+              const y = face.y + yOffset;
+              const pixelIndex = y * SKIN_SIZE.w + x;
+
+              map[pixelIndex] = paletteIndex;
+              const byteOffset = pixelIndex * 4;
+
+              if (c === null) {
+                data[byteOffset + 0] = 0;
+                data[byteOffset + 1] = 0;
+                data[byteOffset + 2] = 0;
+                data[byteOffset + 3] = 0;
+              } else {
+                data[byteOffset + 0] = c.r;
+                data[byteOffset + 1] = c.g;
+                data[byteOffset + 2] = c.b;
+                data[byteOffset + 3] = c.a;
+              }
+            }
+          }
+        }
+
+        layerCtx.putImageData(img, 0, 0);
+        renderAll();
+      }
+
+
+      function copyPartFlipped(layerId, srcPartId, dstPartId) {
+        for (const srcFaceId of FACE_ORDER) {
+          const rule = MIRROR_FACE_MAP[srcFaceId];
+          if (!rule || rule.flipX !== true) {
+            continue;
+          }
+          copyFaceFlipped(layerId, srcPartId, srcFaceId, layerId, dstPartId, rule.dst);
+        }
+        renderPalette();
+        renderAll();
+      }
+
+      function copyFaceFlipped(srcLayerId, srcPartId, srcFaceId, dstLayerId, dstPartId, dstFaceId) {
+        const src = getFaceRect(srcLayerId, srcPartId, srcFaceId);
+        const dst = getFaceRect(dstLayerId, dstPartId, dstFaceId);
+        if (!src || !dst) {
+          return;
+        }
+        if (src.w !== dst.w || src.h !== dst.h) {
+          return;
+        }
+
+        for (let y = 0; y < src.h; y++) {
+          for (let x = 0; x < src.w; x++) {
+            const sx = src.x + x;
+            const sy = src.y + y;
+            const dx = dst.x + (dst.w - 1 - x);
+            const dy = dst.y + y;
+
+            const paletteIndex = getPixelIndex(srcLayerId, sx, sy);
+            let copyPaletteIndex = paletteIndex;
+            if (copyPaletteIndex === UNRESOLVED_INDEX) {
+              const rgba = readLayerPixelRGBA(srcLayerId, sx, sy);
+              copyPaletteIndex = ensureColorInPalette(rgba);
+            }
+
+            setPixelIndex(dstLayerId, dx, dy, copyPaletteIndex);
+            renderQueue.pendingPixels.push({ layerId: dstLayerId, x: dx, y: dy, paletteIndex: copyPaletteIndex });
+          }
+        }
+
+        renderQueue.dirtyFaceKeys.add(`${dstLayerId}:${dstPartId}:${dstFaceId}`);
+        renderQueue.dirtyWhole = true;
+        requestRenderFlush();
+      }
+
+      function getFaceRect(layerId, partId, faceId) {
+        const part = getPartTemplates().find((p) => p.id === partId);
+        if (!part) {
+          return null;
+        }
+        const faces = part.facesByLayer[layerId];
+        return faces ? (faces.find((f) => f.id === faceId) ?? null) : null;
+      }
+
+      /* パレット（RGBA実値）
+       * UIの色選択結果を保持し、各ピクセルは「色そのもの」ではなく「パレット番号」を参照する。
+       * これにより左右反転コピー・一括置換などを、RGBA書き換えではなく番号操作で高速に行える。
+       */
+      function clampPaletteIndex(paletteIndex) { return clampInt(paletteIndex, 0, editorState.palette.length - 1); }
+      function selectPaletteIndex(index) { editorState.selectedPaletteIndex = clampPaletteIndex(index); updateActiveColorText(); }
+      function getActiveColor() { return editorState.palette[editorState.selectedPaletteIndex] ?? editorState.palette[0]; }
+      function updateActiveColorText() {
+        const c = getActiveColor();
+        domRefs.activeColorText.textContent = `選択中: index=${editorState.selectedPaletteIndex} RGBA=(${c.r},${c.g},${c.b},${c.a})`;
+      }
+      function setEditingPaletteIndex(index) {
+        editorState.editingPaletteIndex = clampPaletteIndex(index);
+        const c = editorState.palette[editorState.editingPaletteIndex] ?? editorState.palette[0];
+        domRefs.palColorInp.value = rgbToHex(c.r, c.g, c.b);
+        domRefs.palApplyBtn.disabled = (editorState.editingPaletteIndex === 0);
+        domRefs.palDeleteBtn.disabled = (editorState.editingPaletteIndex === 0);
+      }
+      function appendPaletteColor(color) {
+        editorState.palette.push({ r: color.r, g: color.g, b: color.b, a: 255 });
+        _markDirty();
+        return editorState.palette.length - 1;
+      }
+      function colorEquals(c1, c2) { return c1.r === c2.r && c1.g === c2.g && c1.b === c2.b && c1.a === c2.a; }
+      function hexToRgb(hex) {
+        const h = String(hex).trim();
+        const m = /^#?([0-9a-fA-F]{6})$/.exec(h);
+        if (!m) {
+          return { r: 255, g: 255, b: 255 };
+        }
+        const v = parseInt(m[1], 16);
+        return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+      }
+      function rgbToHex(r, g, b) {
+        const to2 = (n) => n.toString(16).padStart(2, '0');
+        return `#${to2(clampInt(r, 0, 255))}${to2(clampInt(g, 0, 255))}${to2(clampInt(b, 0, 255))}`;
+      }
+      function applyPaletteEdit() {
+        const paletteIndex = editorState.editingPaletteIndex;
+        if (paletteIndex === 0) {
+          return false;
+        }
+        const rgb = hexToRgb(domRefs.palColorInp.value);
+        const next = { r: rgb.r, g: rgb.g, b: rgb.b, a: 255 };
+        const prev = editorState.palette[paletteIndex];
+        const changed = !colorEquals(prev, next);
+        editorState.palette[paletteIndex] = next;
+        _markDirty();
+        selectPaletteIndex(paletteIndex);
+        setEditingPaletteIndex(paletteIndex);
+        return changed;
+      }
+      function ensureColorInPalette(color) {
+        if (colorEquals(color, { r: 0, g: 0, b: 0, a: 0 })) {
+          return 0;
+        }
+        const paletteIndex = editorState.palette.findIndex((c) => colorEquals(c, color));
+        if (paletteIndex !== -1) {
+          return paletteIndex;
+        }
+        return appendPaletteColor(color);
+      }
+      function renderPalette() {
+        domRefs.paletteGrid.innerHTML = '';
+        editorState.palette.forEach((c, paletteIndex) => {
+          const sw = document.createElement('div');
+          sw.className = 'swatch' + (paletteIndex === editorState.selectedPaletteIndex ? ' selected' : '');
+          if (paletteIndex === 0) {
+            sw.classList.add('transparent');
+          }
+
+          const fill = document.createElement('div');
+          fill.className = 'fill';
+          fill.style.background = `rgba(${c.r},${c.g},${c.b},${c.a / 255})`;
+          sw.appendChild(fill);
+
+          const label = document.createElement('div');
+          label.className = 'indexLabel';
+          label.textContent = String(paletteIndex);
+          sw.appendChild(label);
+
+          sw.addEventListener('click', () => {
+            selectPaletteIndex(paletteIndex);
+            setEditingPaletteIndex(paletteIndex);
+            renderPalette();
+          });
+
+          domRefs.paletteGrid.appendChild(sw);
+        });
+
+        updateActiveColorText();
+        setEditingPaletteIndex(editorState.editingPaletteIndex);
+      }
+
+      /* インデックスマップ（ピクセル→パレット番号）
+       * フェイス/レイヤーごとに、各ピクセルが参照するパレット番号を保持する。
+       * 実テクスチャのRGBAは描画時に生成し、編集はインデックス更新に集約する。
+       */
+      function clearAllLayers() {
+        for (const layer of LAYERS) {
+          getLayerCtx(layer.id).clearRect(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+          editorState.pixelIndexByLayer[layer.id].fill(UNRESOLVED_INDEX);
+        }
+      }
+      function setPixelIndex(layerId, x, y, paletteIndex) {
+        editorState.pixelIndexByLayer[layerId][y * SKIN_SIZE.w + x] = paletteIndex;
+        _markDirty();
+        return;
+      }
+      function getPixelIndex(layerId, x, y) { return editorState.pixelIndexByLayer[layerId][y * SKIN_SIZE.w + x]; }
+
+      function recolorPixelsForPaletteIndexAcrossLayers(paletteIndex) {
+        if (paletteIndex <= 0) {
+          return;
+        }
+        const c = editorState.palette[paletteIndex];
+        if (!c) {
+          return;
+        }
+
+        for (const layer of LAYERS) {
+          const img = getLayerCtx(layer.id).getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+          const data = img.data;
+          const map = editorState.pixelIndexByLayer[layer.id];
+
+          for (let pixelIndex = 0; pixelIndex < map.length; pixelIndex++) {
+            if (map[pixelIndex] !== paletteIndex) {
+              continue;
+            }
+            const di = pixelIndex * 4;
+            data[di + 0] = c.r; data[di + 1] = c.g; data[di + 2] = c.b; data[di + 3] = c.a;
+          }
+          getLayerCtx(layer.id).putImageData(img, 0, 0);
+        }
+      }
+
+      function deleteEditingPaletteColorAcrossLayers() {
+        const deletedIndex = editorState.editingPaletteIndex;
+        if (deletedIndex === 0) {
+          return;
+        }
+        if (deletedIndex < 0 || deletedIndex >= editorState.palette.length) {
+          return;
+        }
+
+        for (const layer of LAYERS) {
+          const map = editorState.pixelIndexByLayer[layer.id];
+          for (let pixelIndex = 0; pixelIndex < map.length; pixelIndex++) {
+            const v = map[pixelIndex];
+            if (v === deletedIndex) {
+              map[pixelIndex] = 0;
+            } else if (v > deletedIndex) {
+              map[pixelIndex] = v - 1;
+            }
+          }
+        }
+
+        editorState.palette.splice(deletedIndex, 1);
+
+        _markDirty();
+        if (editorState.selectedPaletteIndex === deletedIndex) {
+          editorState.selectedPaletteIndex = 0;
+        }
+        if (editorState.editingPaletteIndex === deletedIndex) {
+          editorState.editingPaletteIndex = 0;
+        }
+        if (editorState.selectedPaletteIndex > deletedIndex) {
+          editorState.selectedPaletteIndex -= 1;
+        }
+        if (editorState.editingPaletteIndex > deletedIndex) {
+          editorState.editingPaletteIndex -= 1;
+        }
+
+        editorState.selectedPaletteIndex = clampPaletteIndex(editorState.selectedPaletteIndex);
+        editorState.editingPaletteIndex = clampPaletteIndex(editorState.editingPaletteIndex);
+
+        rebuildAllLayerCanvasesFromIndexMap();
+        updateActiveColorText();
+        setEditingPaletteIndex(editorState.editingPaletteIndex);
+        renderAll();
+      }
+
+      function purgeUnusedPaletteColors() {
+        /* 0番（透明）は常に残す */
+        const used = new Uint8Array(editorState.palette.length);
+        used[0] = 1;
+
+        for (const layer of LAYERS) {
+          const map = editorState.pixelIndexByLayer[layer.id];
+          for (let pixelIndex = 0; pixelIndex < map.length; pixelIndex++) {
+            const v = map[pixelIndex];
+            if (v === UNRESOLVED_INDEX) {
+              continue;
+            }
+            if (v <= 0) {
+              continue;
+            }
+            if (v >= used.length) {
+              continue;
+            }
+            used[v] = 1;
+          }
+        }
+
+        const oldLen = editorState.palette.length; const remap = new Array(oldLen).fill(0);
+
+        const newPalette = [editorState.palette[0]];
+
+        let nextIndex = 1;
+        for (let paletteIndex = 1; paletteIndex < oldLen; paletteIndex++) {
+          if (used[paletteIndex] !== 1) {
+            continue;
+          }
+          remap[paletteIndex] = nextIndex;
+          newPalette.push(editorState.palette[paletteIndex]);
+          nextIndex += 1;
+        }
+
+        /* インデックスマップを再マッピング */
+        for (const layer of LAYERS) {
+          const map = editorState.pixelIndexByLayer[layer.id];
+          for (let pixelIndex = 0; pixelIndex < map.length; pixelIndex++) {
+            const v = map[pixelIndex];
+            if (v === UNRESOLVED_INDEX) {
+              continue;
+            }
+            if (v <= 0) { map[pixelIndex] = 0; continue; }
+            if (v >= remap.length) { map[pixelIndex] = 0; continue; }
+            map[pixelIndex] = remap[v];
+          }
+        }
+
+        /* パレット差し替え */
+        editorState.palette = newPalette;
+
+        _markDirty();
+        /* 選択/編集中インデックスを再マッピング */
+        const sel = editorState.selectedPaletteIndex;
+        editorState.selectedPaletteIndex = (sel >= 0 && sel < remap.length) ? remap[sel] : 0;
+
+        const edit = editorState.editingPaletteIndex;
+        editorState.editingPaletteIndex = (edit >= 0 && edit < remap.length) ? remap[edit] : 0;
+
+        editorState.selectedPaletteIndex = clampPaletteIndex(editorState.selectedPaletteIndex);
+        editorState.editingPaletteIndex = clampPaletteIndex(editorState.editingPaletteIndex);
+
+        rebuildAllLayerCanvasesFromIndexMap();
+        updateActiveColorText();
+        setEditingPaletteIndex(editorState.editingPaletteIndex);
+        renderPalette();
+        renderAll();
+      }
+
+
+      function rebuildAllLayerCanvasesFromIndexMap() {
+        for (const layer of LAYERS) {
+          rebuildLayerCanvasFromIndexMap(layer.id);
+        }
+      }
+      function rebuildLayerCanvasFromIndexMap(layerId) {
+        const layerCtx = getLayerCtx(layerId);
+        const img = layerCtx.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+        const data = img.data;
+        const map = editorState.pixelIndexByLayer[layerId];
+
+        for (let pixelIndex = 0; pixelIndex < map.length; pixelIndex++) {
+          const storedPaletteIndex = map[pixelIndex];
+          if (storedPaletteIndex === UNRESOLVED_INDEX) {
+            continue;
+          }
+
+          const di = pixelIndex * 4;
+          if (storedPaletteIndex === 0) { data[di + 0] = 0; data[di + 1] = 0; data[di + 2] = 0; data[di + 3] = 0; continue; }
+
+          const c = editorState.palette[storedPaletteIndex];
+          if (!c) { data[di + 3] = 0; map[pixelIndex] = 0; continue; }
+          data[di + 0] = c.r; data[di + 1] = c.g; data[di + 2] = c.b; data[di + 3] = c.a;
+        }
+        layerCtx.putImageData(img, 0, 0);
+      }
+
+      /* レンダリング統括
+       * 変更検知（dirty）や復元直後の「全体再描画」を、ここから一貫して実行する。
+       * 描画手順の分岐が散らばると復元時の反映漏れが起きやすいため、入口を1つに寄せる。
+       */
+      function renderAll() {
+        flushRenderQueueNow();
+        faceTransparencyCache.clear();
+        renderWholeView();
+
+        for (const view of faceViews.values()) {
+          renderFace(view);
+          if (editorState.showGrid && view.gridDirty) {
+            renderFaceGrid(view);
+            view.gridDirty = false;
+          }
+        }
+
+        updateExportCanvasComposite();
+        preview3d.updateTextureFromCanvas(domRefs.exportCanvas);
+      }
+
+      function renderWholeView() {
+        domRefs.viewCanvas.width = SKIN_SIZE.w * WHOLE_VIEW_ZOOM;
+        domRefs.viewCanvas.height = SKIN_SIZE.h * WHOLE_VIEW_ZOOM;
+
+        drawChecker(contexts.view, domRefs.viewCanvas.width, domRefs.viewCanvas.height, 10);
+        contexts.view.imageSmoothingEnabled = false;
+        contexts.view.drawImage(domRefs.baseCanvas, 0, 0, SKIN_SIZE.w * WHOLE_VIEW_ZOOM, SKIN_SIZE.h * WHOLE_VIEW_ZOOM);
+        contexts.view.drawImage(domRefs.outerCanvas, 0, 0, SKIN_SIZE.w * WHOLE_VIEW_ZOOM, SKIN_SIZE.h * WHOLE_VIEW_ZOOM);
+
+        contexts.view.strokeStyle = '#333';
+        contexts.view.lineWidth = 1;
+        contexts.view.strokeRect(0.5, 0.5, domRefs.viewCanvas.width - 1, domRefs.viewCanvas.height - 1);
+      }
+
+      function computeFaceHasTransparency(view) {
+        const { face, layerId } = view;
+        const map = editorState.pixelIndexByLayer[layerId];
+        for (let y = 0; y < face.h; y++) {
+          const sy = face.y + y;
+          const rowBase = sy * SKIN_SIZE.w + face.x;
+          for (let x = 0; x < face.w; x++) {
+            const storedPaletteIndex = map[rowBase + x];
+            if (storedPaletteIndex === UNRESOLVED_INDEX) {
+              return true;
+            }
+            if (storedPaletteIndex === 0) {
+              return true;
+            }
+            const c = editorState.palette[storedPaletteIndex];
+            if (!c) {
+              return true;
+            }
+            if (c.a !== 255) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      function renderFace(view, dirtyRectLocal) {
+        const { face, contexts: c, canvas, layerId } = view;
+
+        const key = _faceKey(view);
+        let hasTransparency = faceTransparencyCache.get(key);
+        if (hasTransparency === undefined) {
+          hasTransparency = computeFaceHasTransparency(view);
+          faceTransparencyCache.set(key, hasTransparency);
+        }
+
+        /* Background: checker only when transparency exists in this face */
+        if (hasTransparency) {
+          drawChecker(c, canvas.width, canvas.height, Math.max(4, Math.floor(editorState.faceZoom / 2)));
+        } else {
+          c.save();
+          c.fillStyle = '#0b0b0b';
+          c.fillRect(0, 0, canvas.width, canvas.height);
+          c.restore();
+        }
+
+        c.imageSmoothingEnabled = false;
+
+        const srcCanvas = getLayerCanvas(layerId);
+        c.drawImage(srcCanvas, face.x, face.y, face.w, face.h, 0, 0, face.w * editorState.faceZoom, face.h * editorState.faceZoom);
+
+        c.strokeStyle = '#333';
+        c.lineWidth = 1;
+        c.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+      }
+
+
+      function renderFaceGrid(view) {
+        const { face, gridCtx: g, gridCanvas } = view;
+
+        g.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+
+        const zx = editorState.faceZoom;
+
+        g.save();
+        g.strokeStyle = 'rgba(0,0,0,0.35)';
+        g.lineWidth = 1;
+
+        for (let x = 0; x <= face.w; x++) {
+          const px = x * zx + 0.5;
+          g.beginPath(); g.moveTo(px, 0); g.lineTo(px, face.h * zx); g.stroke();
+        }
+        for (let y = 0; y <= face.h; y++) {
+          const py = y * zx + 0.5;
+          g.beginPath(); g.moveTo(0, py); g.lineTo(face.w * zx, py); g.stroke();
+        }
+
+        g.restore();
+      }
+
+      function drawGrid(c, w, h, zoom) {
+        c.save();
+        c.strokeStyle = 'rgba(0,0,0,0.35)';
+        c.lineWidth = 1;
+        for (let x = 0; x <= w; x++) {
+          const px = x * zoom + 0.5;
+          c.beginPath(); c.moveTo(px, 0); c.lineTo(px, h * zoom); c.stroke();
+        }
+        for (let y = 0; y <= h; y++) {
+          const py = y * zoom + 0.5;
+          c.beginPath(); c.moveTo(0, py); c.lineTo(w * zoom, py); c.stroke();
+        }
+        c.restore();
+      }
+
+      function drawChecker(c, w, h, cell) {
+        c.save();
+        c.fillStyle = '#0b0b0b';
+        c.fillRect(0, 0, w, h);
+        c.fillStyle = '#121212';
+        for (let y = 0; y < h; y += cell) {
+          for (let x = 0; x < w; x += cell) {
+            const even = ((Math.floor(x / cell) + Math.floor(y / cell)) % 2) === 0;
+            if (!even) {
+              c.fillRect(x, y, cell, cell);
+            }
+          }
+        }
+        c.restore();
+      }
+
+      function writeLayerPixelByPaletteIndex(layerId, x, y, index) {
+        const layerCtx = getLayerCtx(layerId);
+        const img = layerCtx.getImageData(x, y, 1, 1);
+        const d = img.data;
+
+        if (index === 0) { d[0] = 0; d[1] = 0; d[2] = 0; d[3] = 0; layerCtx.putImageData(img, x, y); return; }
+
+        const c = editorState.palette[index];
+        if (!c) { d[3] = 0; layerCtx.putImageData(img, x, y); setPixelIndex(layerId, x, y, 0); return; }
+
+        d[0] = c.r; d[1] = c.g; d[2] = c.b; d[3] = c.a;
+        layerCtx.putImageData(img, x, y);
+      }
+
+      function readLayerPixelRGBA(layerId, x, y) {
+        const img = getLayerCtx(layerId).getImageData(x, y, 1, 1);
+        const d = img.data;
+        return { r: d[0], g: d[1], b: d[2], a: d[3] };
+      }
+
+      function updateExportCanvasComposite() {
+        contexts.export.clearRect(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+        contexts.export.imageSmoothingEnabled = false;
+        contexts.export.drawImage(domRefs.baseCanvas, 0, 0);
+        contexts.export.drawImage(domRefs.outerCanvas, 0, 0);
+      }
+
+      function buildExportPngDataUrl() {
+        updateExportCanvasComposite();
+        return domRefs.exportCanvas.toDataURL('image/png');
+      }
+
+      async function loadPngFile(file) {
+        const url = URL.createObjectURL(file);
+        try {
+          const img = await loadImage(url);
+
+          contexts.export.clearRect(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+          contexts.export.imageSmoothingEnabled = false;
+          contexts.export.drawImage(img, 0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+
+          const src = contexts.export.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h).data;
+
+          contexts.base.clearRect(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+          contexts.outer.clearRect(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+
+          const baseImg = contexts.base.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+          const outerImg = contexts.outer.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+
+          const b = baseImg.data;
+          const o = outerImg.data;
+
+          for (let y = 0; y < SKIN_SIZE.h; y++) {
+            for (let x = 0; x < SKIN_SIZE.w; x++) {
+              const pixelIndex = (y * SKIN_SIZE.w + x);
+              const di = pixelIndex * 4;
+
+              const r = src[di + 0], g = src[di + 1], bb = src[di + 2], a = src[di + 3];
+              const a2 = (a === 0 ? 0 : 255);
+
+              if (isOuterCoord(x, y)) {
+                o[di + 0] = r; o[di + 1] = g; o[di + 2] = bb; o[di + 3] = a2;
+                b[di + 0] = 0; b[di + 1] = 0; b[di + 2] = 0; b[di + 3] = 0;
+              } else {
+                b[di + 0] = r; b[di + 1] = g; b[di + 2] = bb; b[di + 3] = a2;
+                o[di + 0] = 0; o[di + 1] = 0; o[di + 2] = 0; o[di + 3] = 0;
+              }
+            }
+          }
+
+          contexts.base.putImageData(baseImg, 0, 0);
+          contexts.outer.putImageData(outerImg, 0, 0);
+
+          rebuildPaletteAndIndexMapsFromCanvases();
+          renderPalette();
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
+
+
+      async function loadPaletteOnlyPngFile(file) {
+        const url = URL.createObjectURL(file);
+        try {
+          const img = await loadImage(url);
+
+          const tmp = document.createElement('canvas');
+          tmp.width = img.width;
+          tmp.height = img.height;
+
+          const tctx = tmp.getContext('2d');
+          if (!tctx) {
+            throw new Error('2D context unavailable: tmp canvas');
+          }
+
+          tctx.clearRect(0, 0, tmp.width, tmp.height);
+          tctx.imageSmoothingEnabled = false;
+          tctx.drawImage(img, 0, 0);
+
+          const src = tctx.getImageData(0, 0, tmp.width, tmp.height).data;
+
+          /* 透明(0番)は常に保持。PNGからは非透明のみを追加。 */
+          const palette = [{ r: 0, g: 0, b: 0, a: 0 }];
+
+          const map = new Map();
+          map.set(colorKey(palette[0]), 0);
+
+          for (let byteOffset = 0; byteOffset < src.length; byteOffset += 4) {
+            const a = src[byteOffset + 3];
+            if (a === 0) {
+              continue;
+            }
+
+            const c = { r: src[byteOffset + 0], g: src[byteOffset + 1], b: src[byteOffset + 2], a: 255 };
+            const key = colorKey(c);
+            if (map.has(key)) {
+              continue;
+            }
+
+            map.set(key, palette.length);
+            palette.push(c);
+          }
+
+          editorState.palette = palette;
+
+          _markDirty();
+          /* 既存キャンバスの見た目を維持するため、現在のレイヤー画像を新パレットへ再マッピング */
+          rebuildIndexMapsFromCanvasesUsingCurrentPalette();
+
+          editorState.selectedPaletteIndex = clampPaletteIndex(editorState.selectedPaletteIndex);
+          editorState.editingPaletteIndex = clampPaletteIndex(editorState.editingPaletteIndex);
+
+          updateActiveColorText();
+          setEditingPaletteIndex(editorState.editingPaletteIndex);
+          renderPalette();
+          renderAll();
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
+
+      function rebuildIndexMapsFromCanvasesUsingCurrentPalette() {
+        for (const layer of LAYERS) {
+          editorState.pixelIndexByLayer[layer.id].fill(UNRESOLVED_INDEX);
+        }
+
+        const map = new Map();
+        for (let paletteIndex = 0; paletteIndex < editorState.palette.length; paletteIndex++) {
+          map.set(colorKey(editorState.palette[paletteIndex]), paletteIndex);
+        }
+
+        for (const layer of LAYERS) {
+          const layerCtx = getLayerCtx(layer.id);
+          const img = layerCtx.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+          const data = img.data;
+          const indexMap = editorState.pixelIndexByLayer[layer.id];
+
+          for (let pixelIndex = 0; pixelIndex < indexMap.length; pixelIndex++) {
+            const di = pixelIndex * 4;
+            const a = data[di + 3];
+
+            if (a === 0) { indexMap[pixelIndex] = 0; continue; }
+
+            const c = { r: data[di + 0], g: data[di + 1], b: data[di + 2], a: 255 };
+            const key = colorKey(c);
+
+            let paletteIndex = map.get(key);
+            if (paletteIndex === undefined) {
+              paletteIndex = editorState.palette.length;
+              editorState.palette.push(c);
+              map.set(key, paletteIndex);
+            }
+            indexMap[pixelIndex] = paletteIndex;
+          }
+        }
+      }
+
+      function rebuildPaletteAndIndexMapsFromCanvases() {
+        editorState.palette = [{ r: 0, g: 0, b: 0, a: 0 }];
+        _markDirty();
+        editorState.selectedPaletteIndex = 0;
+        editorState.editingPaletteIndex = 0;
+
+        for (const layer of LAYERS) {
+          editorState.pixelIndexByLayer[layer.id].fill(UNRESOLVED_INDEX);
+        }
+
+        const map = new Map();
+        map.set(colorKey({ r: 0, g: 0, b: 0, a: 0 }), 0);
+
+        for (const layer of LAYERS) {
+          const layerCtx = getLayerCtx(layer.id);
+          const img = layerCtx.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+          const data = img.data;
+          const indexMap = editorState.pixelIndexByLayer[layer.id];
+
+          for (let pixelIndex = 0; pixelIndex < indexMap.length; pixelIndex++) {
+            const di = pixelIndex * 4;
+            const a = data[di + 3];
+            const c = { r: data[di + 0], g: data[di + 1], b: data[di + 2], a: (a === 0 ? 0 : 255) };
+            const key = colorKey(c);
+            let paletteIndex = map.get(key);
+            if (paletteIndex === undefined) {
+              paletteIndex = editorState.palette.length;
+              editorState.palette.push(c);
+              map.set(key, paletteIndex);
+            }
+            indexMap[pixelIndex] = paletteIndex;
+          }
+        }
+
+        setEditingPaletteIndex(0);
+        updateActiveColorText();
+      }
+
+      function colorKey(c) { return `${c.r},${c.g},${c.b},${c.a}`; }
+
+      function clampInt(v, min, max) { if (!Number.isFinite(v)) return min; return Math.min(max, Math.max(min, v)); }
+      function clampFloat(v, min, max) { if (!Number.isFinite(v)) return min; return Math.min(max, Math.max(min, v)); }
+
+      function loadImage(url) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Image load failed'));
+          img.src = url;
+        });
+      }
+
+      /* 3D Preview (WebGL1) - FIXED CAMERA/MODEL RELATION */
+      /* レンダリングキュー
+       * 「すぐ描く」と「まとめて描く」を混在させると順序依存バグを生むため、描画要求はここに集約してフラッシュする。
+       */
+      function init3DPreview(canvas) {
+        /* カメラ/プレビューのデフォルトを一元管理 */
+        const PREVIEW_DEFAULTS = Object.freeze({
+          autoRotate: false,
+          light: 1.1,
+          litMix: 0.5,
+          bg: '#0b0b0b',
+          showBase: true,
+          showOuter: true,
+          partVisible: Object.freeze((() => {
+            const v = {};
+            for (const p of getPartTemplates()) {
+              v[p.id] = true;
+            }
+            return v;
+          })()),
+
+          camera: Object.freeze({
+            yaw: 0.9,
+            pitch: 0.25,
+            dist: 64.0,
+            fovDeg: 35.0,
+            near: 0.5,
+            far: 400.0,
+          }),
+
+          target: Object.freeze([0, 12, 0]),
+        });
+
+        const gl = canvas.getContext('webgl', { alpha: false, antialias: true });
+        if (!gl) {
+          return {
+            autoRotate: PREVIEW_DEFAULTS.autoRotate,
+            showBase: PREVIEW_DEFAULTS.showBase,
+            showOuter: PREVIEW_DEFAULTS.showOuter,
+            partVisible: { ...PREVIEW_DEFAULTS.partVisible },
+            light: PREVIEW_DEFAULTS.light,
+            litMix: PREVIEW_DEFAULTS.litMix,
+            bg: PREVIEW_DEFAULTS.bg,
+            updateTextureFromCanvas: () => { },
+            resetCamera: () => { },
+          };
+        }
+
+        const vsSource = `
+      attribute vec3 aPos;
+      attribute vec2 aUv;
+      attribute vec3 aNor;
+      uniform mat4 uMvp;
+      uniform mat4 uModel;
+      uniform float uLight;
+      varying vec2 vUv;
+      varying float vLit;
+      void main(){
+        vec3 n = normalize((uModel * vec4(aNor,0.0)).xyz);
+        vec3 l = normalize(vec3(0.35, 0.75, 0.55));
+        float ndl = max(dot(n,l), 0.0);
+        vLit = 0.35 + ndl * uLight;
+        vUv = aUv;
+        gl_Position = uMvp * vec4(aPos, 1.0);
+      }
+    `;
+        const fsSource = `
+      precision mediump float;
+      uniform sampler2D uTex;
+      uniform float uLitMix;
+      varying vec2 vUv;
+      varying float vLit;
+      void main(){
+        vec4 c = texture2D(uTex, vUv);
+        if (c.a < 0.01) {
+          discard;
+        }
+        vec3 litRgb = c.rgb * vLit;
+        vec3 outRgb = mix(c.rgb, litRgb, uLitMix);
+        gl_FragColor = vec4(outRgb, 1.0);
+      }
+    `;
+
+        const program = createProgram(gl, vsSource, fsSource);
+        gl.useProgram(program);
+
+        const loc = {
+          aPos: gl.getAttribLocation(program, 'aPos'),
+          aUv: gl.getAttribLocation(program, 'aUv'),
+          aNor: gl.getAttribLocation(program, 'aNor'),
+          uMvp: gl.getUniformLocation(program, 'uMvp'),
+          uModel: gl.getUniformLocation(program, 'uModel'),
+          uLight: gl.getUniformLocation(program, 'uLight'),
+          uLitMix: gl.getUniformLocation(program, 'uLitMix'),
+          uTex: gl.getUniformLocation(program, 'uTex'),
+        };
+
+        /* base + outer を独立 asset として生成 */
+        const assets = buildPlayerAssets(gl);
+
+        const tex = gl.createTexture();
+        if (!tex) {
+          throw new Error('WebGL texture create failed');
+        }
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 64, 64, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+        gl.uniform1i(loc.uTex, 0);
+
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
+
+        const s = {
+          gl,
+          program,
+          loc,
+          tex,
+          assets,
+
+          autoRotate: PREVIEW_DEFAULTS.autoRotate,
+          light: PREVIEW_DEFAULTS.light,
+          litMix: PREVIEW_DEFAULTS.litMix,
+          bg: PREVIEW_DEFAULTS.bg,
+
+          showBase: PREVIEW_DEFAULTS.showBase,
+          showOuter: PREVIEW_DEFAULTS.showOuter,
+
+          partVisible: { ...PREVIEW_DEFAULTS.partVisible },
+          /* Camera params (fix) */
+          yaw: PREVIEW_DEFAULTS.camera.yaw,
+          pitch: PREVIEW_DEFAULTS.camera.pitch,
+          dist: PREVIEW_DEFAULTS.camera.dist,
+          fovDeg: PREVIEW_DEFAULTS.camera.fovDeg,
+          near: PREVIEW_DEFAULTS.camera.near,
+          far: PREVIEW_DEFAULTS.camera.far,
+
+          /* Model center (focus) */
+          target: ([...(PREVIEW_DEFAULTS.target)]),
+          dragging: false,
+          lastX: 0,
+          lastY: 0,
+
+          updateTextureFromCanvas: (srcCanvas) => {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcCanvas);
+          },
+
+          resetCamera: () => {
+            s.yaw = PREVIEW_DEFAULTS.camera.yaw;
+            s.pitch = PREVIEW_DEFAULTS.camera.pitch;
+            s.dist = PREVIEW_DEFAULTS.camera.dist;
+          },
+        };
+
+        canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+        canvas.addEventListener('pointerdown', (ev) => {
+          s.dragging = true;
+          s.lastX = ev.clientX;
+          s.lastY = ev.clientY;
+          canvas.setPointerCapture(ev.pointerId);
+        });
+        canvas.addEventListener('pointermove', (ev) => {
+          if (!s.dragging) {
+            return;
+          }
+          const dx = ev.clientX - s.lastX;
+          const dy = ev.clientY - s.lastY;
+          s.lastX = ev.clientX;
+          s.lastY = ev.clientY;
+
+          s.yaw += dx * 0.01;
+          s.pitch += dy * 0.01;
+          s.pitch = clampFloat(s.pitch, -1.2, 1.2);
+        });
+        canvas.addEventListener('pointerup', (ev) => {
+          s.dragging = false;
+          try { canvas.releasePointerCapture(ev.pointerId); } catch (_) { }
+        });
+        canvas.addEventListener('pointercancel', (ev) => {
+          s.dragging = false;
+          try { canvas.releasePointerCapture(ev.pointerId); } catch (_) { }
+        });
+
+        canvas.addEventListener('wheel', (ev) => {
+          ev.preventDefault();
+          s.dist += (ev.deltaY > 0 ? 1 : -1) * 4.0;
+          s.dist = clampFloat(s.dist, 2.0, 2000.0);
+        }, { passive: false });
+
+        let lastT = performance.now();
+        const tick = (t) => {
+          const dt = Math.min(0.05, (t - lastT) / 1000);
+          lastT = t;
+          if (s.autoRotate) {
+            s.yaw += dt * 0.45;
+          }
+          draw3D(s, canvas);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+
+        return s;
+      }
+
+      /* assets を for で描画 */
+      function draw3D(s, canvas) {
+        const gl = s.gl;
+
+        const bg = hexToRgb(s.bg);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(bg.r / 255, bg.g / 255, bg.b / 255, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        const aspect = canvas.width / canvas.height;
+        const proj = mat4Perspective(s.fovDeg * Math.PI / 180, aspect, s.near, s.far);
+
+        const [tx, ty, tz] = s.target;
+
+        const eye = [
+          tx + Math.cos(s.yaw) * Math.cos(s.pitch) * s.dist,
+          ty + Math.sin(s.pitch) * s.dist,
+          tz + Math.sin(s.yaw) * Math.cos(s.pitch) * s.dist,
+        ];
+        const view = mat4LookAt(eye, [tx, ty, tz], [0, 1, 0]);
+        const vp = mat4Mul(proj, view);
+
+        let model = mat4Identity();
+        model = mat4Mul(model, mat4RotateY(0));
+
+        const mvp = mat4Mul(vp, model);
+
+        gl.useProgram(s.program);
+        gl.uniformMatrix4fv(s.loc.uMvp, false, mvp);
+        gl.uniformMatrix4fv(s.loc.uModel, false, model);
+        gl.uniform1f(s.loc.uLight, s.light);
+        gl.uniform1f(s.loc.uLitMix, s.litMix);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, s.tex);
+
+        const stride = (3 + 2 + 3) * 4;
+
+        for (let assetIndex = 0; assetIndex < s.assets.length; assetIndex++) {
+          const a = s.assets[assetIndex];
+
+          const layerEnabled =
+            (assetIndex === 0) ? s.showBase :
+              (assetIndex === 1) ? s.showOuter :
+                true;
+          if (!layerEnabled) {
+            continue;
+          }
+
+          gl.bindBuffer(gl.ARRAY_BUFFER, a.vbo);
+
+          gl.enableVertexAttribArray(s.loc.aPos);
+          gl.vertexAttribPointer(s.loc.aPos, 3, gl.FLOAT, false, stride, 0);
+
+          gl.enableVertexAttribArray(s.loc.aUv);
+          gl.vertexAttribPointer(s.loc.aUv, 2, gl.FLOAT, false, stride, 3 * 4);
+
+          gl.enableVertexAttribArray(s.loc.aNor);
+          gl.vertexAttribPointer(s.loc.aNor, 3, gl.FLOAT, false, stride, (3 + 2) * 4);
+
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, a.ibo);
+
+          if ((a.partDraws ?? []).length === 0) {
+            gl.drawElements(gl.TRIANGLES, a.indexCount, gl.UNSIGNED_SHORT, 0);
+            continue;
+          }
+
+          for (const d of a.partDraws) {
+            if (!s.partVisible[d.partId]) {
+              continue;
+            }
+            gl.drawElements(gl.TRIANGLES, d.indexCount, gl.UNSIGNED_SHORT, d.indexOffsetBytes);
+          }
+        }
+      }
+
+      /* WebGL初期化で使う補助関数群
+       * shaderのコンパイル/リンク失敗時のログ収集をここに集約し、描画側の処理を読みやすく保つ。
+       */
+      function createShader(gl, type, source) {
+        const sh = gl.createShader(type);
+        if (!sh) {
+          throw new Error('shader create failed');
+        }
+        gl.shaderSource(sh, source);
+        gl.compileShader(sh);
+        if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+          const info = gl.getShaderInfoLog(sh) || '';
+          gl.deleteShader(sh);
+          throw new Error(`shader compile failed: ${info}`);
+        }
+        return sh;
+      }
+      function createProgram(gl, vsSource, fsSource) {
+        const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        const prg = gl.createProgram();
+        if (!prg) {
+          throw new Error('program create failed');
+        }
+        gl.attachShader(prg, vs);
+        gl.attachShader(prg, fs);
+        gl.linkProgram(prg);
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+        if (!gl.getProgramParameter(prg, gl.LINK_STATUS)) {
+          const info = gl.getProgramInfoLog(prg) || '';
+          gl.deleteProgram(prg);
+          throw new Error(`program link failed: ${info}`);
+        }
+        return prg;
+      }
+
+      /* Mesh (base + outer assets) */
+      function buildPlayerAssets(gl) {
+        const baseMesh = buildPlayerMeshForLayer('base', 0.0);
+        const outerMesh = buildPlayerMeshForLayer('outer', 1.0);
+
+        return [
+          createMeshAsset(gl, baseMesh),
+          createMeshAsset(gl, outerMesh),
+        ];
+      }
+
+      function createMeshAsset(gl, mesh) {
+        const vbo = gl.createBuffer();
+        const ibo = gl.createBuffer();
+        if (!vbo || !ibo) {
+          throw new Error('WebGL buffer create failed');
+        }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, mesh.vertexBufferData, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
+
+        const partDraws = (mesh.partDraws ?? []).map((d) => ({
+          partId: d.partId,
+          indexCount: d.indexCount,
+          indexOffsetBytes: d.startIndex * 2,
+        }));
+
+        return Object.freeze({
+          vbo,
+          ibo,
+          indexCount: mesh.indices.length,
+          partDraws,
+        });
+      }
+
+      function buildPlayerMeshForLayer(layerId, inflate) {
+        const rectsFor = (partId, layer) => {
+          const part = getPartTemplates().find((pp) => pp.id === partId);
+          if (!part) {
+            throw new Error('part not found for uv');
+          }
+          const faces = part.facesByLayer[layer];
+          const r = {};
+          for (const f of faces) r[f.id] = { x: f.x, y: f.y, w: f.w, h: f.h };
+          return r;
+        };
+
+        const parts = [
+          { id: 'head', c: [0, 24, 0], s: [8, 8, 8], uv: rectsFor('head', layerId) },
+          { id: 'body', c: [0, 14, 0], s: [8, 12, 4], uv: rectsFor('body', layerId) },
+          { id: 'right_arm', c: [(CURRENT_MODEL_TYPE === 'slim') ? -5.5 : -6, 14, 0], s: [(CURRENT_MODEL_TYPE === 'slim') ? 3 : 4, 12, 4], uv: rectsFor('right_arm', layerId) },
+          { id: 'left_arm', c: [(CURRENT_MODEL_TYPE === 'slim') ? 5.5 : 6, 14, 0], s: [(CURRENT_MODEL_TYPE === 'slim') ? 3 : 4, 12, 4], uv: rectsFor('left_arm', layerId) },
+          { id: 'right_leg', c: [-2, 2, 0], s: [4, 12, 4], uv: rectsFor('right_leg', layerId) },
+          { id: 'left_leg', c: [2, 2, 0], s: [4, 12, 4], uv: rectsFor('left_leg', layerId) },
+        ];
+
+        const vertexBufferData = [];
+        const indices = [];
+        const partDraws = [];
+        let vertexBaseIndex = 0;
+
+        for (const p of parts) {
+          const inflatedSize = [
+            p.s[0] + inflate,
+            p.s[1] + inflate,
+            p.s[2] + inflate,
+          ];
+
+          const chunk = buildBoxWithUv(p.c, inflatedSize, p.uv);
+          vertexBufferData.push(...chunk.vertexBufferData);
+
+          const startIndex = indices.length;
+          for (const chunkIndex of chunk.indices) {
+            indices.push(chunkIndex + vertexBaseIndex);
+          }
+          partDraws.push({ partId: p.id, startIndex, indexCount: chunk.indices.length });
+
+          vertexBaseIndex += chunk.vertexCount;
+        }
+
+        return { vertexBufferData: new Float32Array(vertexBufferData), indices: new Uint16Array(indices), partDraws };
+      }
+
+      function buildBoxWithUv(center, size, uvRects) {
+        const [cx, cy, cz] = center;
+        const [w, h, d] = size;
+        const hx = w / 2, hy = h / 2, hz = d / 2;
+
+        const faces = [
+          ['front', [0, 0, 1], [[cx - hx, cy - hy, cz + hz], [cx + hx, cy - hy, cz + hz], [cx + hx, cy + hy, cz + hz], [cx - hx, cy + hy, cz + hz]]],
+          ['back', [0, 0, -1], [[cx + hx, cy - hy, cz - hz], [cx - hx, cy - hy, cz - hz], [cx - hx, cy + hy, cz - hz], [cx + hx, cy + hy, cz - hz]]],
+          ['right', [1, 0, 0], [[cx + hx, cy - hy, cz + hz], [cx + hx, cy - hy, cz - hz], [cx + hx, cy + hy, cz - hz], [cx + hx, cy + hy, cz + hz]]],
+          ['left', [-1, 0, 0], [[cx - hx, cy - hy, cz - hz], [cx - hx, cy - hy, cz + hz], [cx - hx, cy + hy, cz + hz], [cx - hx, cy + hy, cz - hz]]],
+          ['top', [0, 1, 0], [[cx - hx, cy + hy, cz + hz], [cx + hx, cy + hy, cz + hz], [cx + hx, cy + hy, cz - hz], [cx - hx, cy + hy, cz - hz]]],
+          ['bottom', [0, -1, 0], [[cx - hx, cy - hy, cz - hz], [cx + hx, cy - hy, cz - hz], [cx + hx, cy - hy, cz + hz], [cx - hx, cy - hy, cz + hz]]],
+        ];
+
+        const vertexBufferData = [];
+        const indices = [];
+        let vertexBaseIndex = 0;
+
+        for (const f of faces) {
+          const name = f[0];
+          const n = f[1];
+          const pos = f[2];
+          /* NOTE: Minecraft skin UV conventions: editor 'right/left' are character sides; WebGL +X/-X face mapping is opposite. */
+          const r = (name === 'right') ? uvRects['left'] : (name === 'left') ? uvRects['right'] : uvRects[name];
+          if (!r) {
+            throw new Error(`uv rect missing: ${name}`);
+          }
+
+          const uvs = uvFromRect(r.x, r.y, r.w, r.h);
+
+          for (let vertexIndex = 0; vertexIndex < 4; vertexIndex++) {
+            vertexBufferData.push(pos[vertexIndex][0], pos[vertexIndex][1], pos[vertexIndex][2]);
+            vertexBufferData.push(uvs[vertexIndex][0], uvs[vertexIndex][1]);
+            vertexBufferData.push(n[0], n[1], n[2]);
+          }
+          indices.push(vertexBaseIndex + 0, vertexBaseIndex + 1, vertexBaseIndex + 2, vertexBaseIndex + 0, vertexBaseIndex + 2, vertexBaseIndex + 3);
+          vertexBaseIndex += 4;
+        }
+
+        return { vertexBufferData, indices, vertexCount: vertexBaseIndex };
+
+        function uvFromRect(x, y, w_, h_) {
+          const u0 = x / 64;
+          const u1 = (x + w_) / 64;
+          const v0 = 1 - (y / 64);
+          const v1 = 1 - ((y + h_) / 64);
+          return [[u0, v1], [u1, v1], [u1, v0], [u0, v0]];
+        }
+      }
+
+
+      function mat4Identity() {
+        return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+      }
+      function mat4Mul(a, b) {
+        /* column-major (OpenGL/WebGL) multiplication: out = a * b */
+        const out = new Float32Array(16);
+
+        /* out[col*4 + row] = sum_k a[k*4 + row] * b[col*4 + k] */
+        for (let col = 0; col < 4; col++) {
+          for (let row = 0; row < 4; row++) {
+            out[col * 4 + row] =
+              a[0 * 4 + row] * b[col * 4 + 0] +
+              a[1 * 4 + row] * b[col * 4 + 1] +
+              a[2 * 4 + row] * b[col * 4 + 2] +
+              a[3 * 4 + row] * b[col * 4 + 3];
+          }
+        }
+        return out;
+      }
+      function mat4RotateY(rad) {
+        const c = Math.cos(rad), s = Math.sin(rad);
+        return new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]);
+      }
+      function mat4Perspective(fovy, aspect, near, far) {
+        const f = 1 / Math.tan(fovy / 2);
+        const nf = 1 / (near - far);
+        return new Float32Array([
+          f / aspect, 0, 0, 0,
+          0, f, 0, 0,
+          0, 0, (far + near) * nf, -1,
+          0, 0, (2 * far * near) * nf, 0,
+        ]);
+      }
+      function mat4LookAt(eye, center, up) {
+        const [ex, ey, ez] = eye;
+        const [cx, cy, cz] = center;
+        const [ux, uy, uz] = up;
+
+        let zx = ex - cx, zy = ey - cy, zz = ez - cz;
+        const zlen = Math.hypot(zx, zy, zz) || 1;
+        zx /= zlen; zy /= zlen; zz /= zlen;
+
+        let xx = uy * zz - uz * zy;
+        let xy = uz * zx - ux * zz;
+        let xz = ux * zy - uy * zx;
+        const xlen = Math.hypot(xx, xy, xz) || 1;
+        xx /= xlen; xy /= xlen; xz /= xlen;
+
+        let yx = zy * xz - zz * xy;
+        let yy = zz * xx - zx * xz;
+        let yz = zx * xy - zy * xx;
+
+        return new Float32Array([
+          xx, yx, zx, 0,
+          xy, yy, zy, 0,
+          xz, yz, zz, 0,
+          -(xx * ex + xy * ey + xz * ez),
+          -(yx * ex + yy * ey + yz * ez),
+          -(zx * ex + zy * ey + zz * ez),
+          1,
+        ]);
+      }
+    })();
+  </script>
+</body>
+
+</html>

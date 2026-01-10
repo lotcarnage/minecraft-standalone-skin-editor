@@ -466,7 +466,7 @@ SOFTWARE.
 <body>
 
   <header>
-    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.0.2</span>
+    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.1.0</span>
 
     <span class="model-type">
       <label><input type="radio" name="modelType" id="modelTypeStandard" value="standard" checked />standard</label>
@@ -573,6 +573,7 @@ SOFTWARE.
           <div class="paletteTopRow">
             <button id="paletteAddBtn">色を追加</button>
             <button id="palettePurgeUnusedBtn">未使用色を削除</button>
+            <label><input id="paletteEmbedChk" type="checkbox" checked />パレット埋め込み</label>
             <div class="mini" id="activeColorText" style="margin:0;"></div>
           </div>
 
@@ -608,6 +609,13 @@ SOFTWARE.
       const FACE_ORDER = Object.freeze(['top', 'right', 'front', 'left', 'back', 'bottom']);
 
       const UNRESOLVED_INDEX = -1; /* インデックスマップ未解決値：RGBA→パレット番号の解決がまだ行われていないピクセルを示す。 */
+
+      const UNUSE_RECTS = Object.freeze([
+        { x: 0, y: 0, w: 8, h: 8 },
+        { x: 24, y: 0, w: 8, h: 8 },
+        { x: 32, y: 0, w: 8, h: 8 },
+        { x: 48, y: 0, w: 8, h: 8 },
+      ]);
 
       const LAYERS = Object.freeze([
         { id: 'base', label: '本体（ベース）' },
@@ -948,6 +956,7 @@ SOFTWARE.
 
           paletteAddBtn: byId('paletteAddBtn'),
           palettePurgeUnusedBtn: byId('palettePurgeUnusedBtn'),
+          paletteEmbedChk: (byId('paletteEmbedChk')),
           paletteGrid: byId('paletteGrid'),
           activeColorText: byId('activeColorText'),
           palColorInp: (byId('palColorInp')),
@@ -989,6 +998,7 @@ SOFTWARE.
         isDirty: false,
         faceZoom: clampInt(parseInt(domRefs.faceZoomInp.value, 10), 8, 32),
         showGrid: !!domRefs.gridChk.checked,
+        paletteEmbeddingEnabled: !!domRefs.paletteEmbedChk.checked,
         palette: ([{ r: 0, g: 0, b: 0, a: 0 }]),
         selectedPaletteIndex: 0,
         editingPaletteIndex: 0,
@@ -1012,6 +1022,7 @@ SOFTWARE.
           palette: editorState.palette,
           selectedPaletteIndex: editorState.selectedPaletteIndex,
           editingPaletteIndex: editorState.editingPaletteIndex,
+          paletteEmbeddingEnabled: editorState.paletteEmbeddingEnabled,
           pixelIndexByLayer: {
             base: Array.from(editorState.pixelIndexByLayer.base),
             outer: Array.from(editorState.pixelIndexByLayer.outer),
@@ -1064,6 +1075,10 @@ SOFTWARE.
 
         if (payload.modelType === 'standard' || payload.modelType === 'slim') {
           CURRENT_MODEL_TYPE = payload.modelType;
+        }
+        if (typeof payload.paletteEmbeddingEnabled === 'boolean') {
+          editorState.paletteEmbeddingEnabled = payload.paletteEmbeddingEnabled;
+          domRefs.paletteEmbedChk.checked = editorState.paletteEmbeddingEnabled;
         }
 
         if (!Array.isArray(payload.palette) || payload.palette.length === 0) {
@@ -1144,6 +1159,8 @@ SOFTWARE.
       }
 
       const outerMask = buildOuterMask();
+      const unuseMask = buildUnusePixelMask64x64();
+      const unusePixelIndicesInScanOrder = buildUnusePixelIndicesInScanOrder(unuseMask);
       function buildOuterMask() {
         const mask = new Uint8Array(SKIN_SIZE.w * SKIN_SIZE.h);
         const markRect = (x, y, w, h) => {
@@ -1164,6 +1181,7 @@ SOFTWARE.
         return mask;
       }
       function isOuterCoord(x, y) { return outerMask[y * SKIN_SIZE.w + x] === 1; }
+      function isUnusePixelIndex(pixelIndex) { return unuseMask[pixelIndex] === 1; }
 
       const faceViews = new Map();
 
@@ -1363,6 +1381,13 @@ SOFTWARE.
           if (ok) { _setDirtyState(false); }
         });
         domRefs.saveBtn.addEventListener('click', () => {
+          if (editorState.paletteEmbeddingEnabled) {
+            const dupes = collectDuplicatePaletteRgbIndices();
+            if (dupes.length > 0) {
+              alert(buildDuplicatePaletteRgbMessage(dupes));
+              return;
+            }
+          }
           const a = document.createElement('a');
           a.download = 'skin_64x64.png';
           flushRenderQueueNow();
@@ -1400,6 +1425,9 @@ SOFTWARE.
 
         domRefs.palettePurgeUnusedBtn.addEventListener('click', () => {
           purgeUnusedPaletteColors();
+        });
+        domRefs.paletteEmbedChk.addEventListener('change', () => {
+          editorState.paletteEmbeddingEnabled = !!domRefs.paletteEmbedChk.checked;
         });
 
         /* 色の編集は「カラー入力の変更＝即反映」とします。 */
@@ -2166,6 +2194,41 @@ SOFTWARE.
         return mask;
       }
 
+      function buildUnusePixelMask64x64() {
+        const mask = new Uint8Array(SKIN_SIZE.w * SKIN_SIZE.h);
+        for (const rect of UNUSE_RECTS) {
+          const limitX = rect.x + rect.w;
+          const limitY = rect.y + rect.h;
+          for (let y = rect.y; y < limitY; y++) {
+            if (y < 0 || y >= SKIN_SIZE.h) {
+              continue;
+            }
+            const rowBase = y * SKIN_SIZE.w;
+            for (let x = rect.x; x < limitX; x++) {
+              if (x < 0 || x >= SKIN_SIZE.w) {
+                continue;
+              }
+              mask[rowBase + x] = 1;
+            }
+          }
+        }
+        return mask;
+      }
+
+      function buildUnusePixelIndicesInScanOrder(mask) {
+        const indices = [];
+        for (let y = 0; y < SKIN_SIZE.h; y++) {
+          const rowBase = y * SKIN_SIZE.w;
+          for (let x = 0; x < SKIN_SIZE.w; x++) {
+            const pixelIndex = rowBase + x;
+            if (mask[pixelIndex] === 1) {
+              indices.push(pixelIndex);
+            }
+          }
+        }
+        return indices;
+      }
+
 
 
       function purgeUnusedPaletteColors() {
@@ -2243,6 +2306,88 @@ SOFTWARE.
         setEditingPaletteIndex(editorState.editingPaletteIndex);
         renderPalette();
         renderAll();
+      }
+
+      function applyPaletteEmbeddingToExportCanvas() {
+        const img = contexts.export.getImageData(0, 0, SKIN_SIZE.w, SKIN_SIZE.h);
+        const data = img.data;
+        for (let coordIndex = 0; coordIndex < unusePixelIndicesInScanOrder.length; coordIndex++) {
+          const pixelIndex = unusePixelIndicesInScanOrder[coordIndex];
+          const di = pixelIndex * 4;
+          if (coordIndex < editorState.palette.length) {
+            const c = editorState.palette[coordIndex];
+            data[di + 0] = c.r;
+            data[di + 1] = c.g;
+            data[di + 2] = c.b;
+            data[di + 3] = (coordIndex === 0) ? 0 : 255;
+          } else {
+            data[di + 0] = 0;
+            data[di + 1] = 0;
+            data[di + 2] = 0;
+            data[di + 3] = 0;
+          }
+        }
+        contexts.export.putImageData(img, 0, 0);
+      }
+
+      function collectDuplicatePaletteRgbIndices() {
+        const rgbMap = new Map();
+        for (let paletteIndex = 1; paletteIndex < editorState.palette.length; paletteIndex++) {
+          const c = editorState.palette[paletteIndex];
+          const key = rgbKey(c.r, c.g, c.b);
+          const list = rgbMap.get(key);
+          if (list) {
+            list.push(paletteIndex);
+          } else {
+            rgbMap.set(key, [paletteIndex]);
+          }
+        }
+        const duplicates = [];
+        for (const [key, indices] of rgbMap.entries()) {
+          if (indices.length > 1) {
+            duplicates.push({ key, indices });
+          }
+        }
+        return duplicates;
+      }
+
+      function buildDuplicatePaletteRgbMessage(dupes) {
+        const lines = [];
+        lines.push('パレットに重複した色が存在するため、スキン画像の書き出しを中止しました。');
+        lines.push('次の色は、複数のパレットインデックスで同一の RGB 値を持っています。');
+        for (const dup of dupes) {
+          const parts = dup.key.split(',').map((v) => v.trim());
+          lines.push(`RGB(${parts[0]}, ${parts[1]}, ${parts[2]}): ${dup.indices.map((idx) => `index ${idx}`).join(', ')}`);
+        }
+        lines.push('これらの色の重複を解消したうえで、再度書き出しを行ってください。');
+        return lines.join('\n');
+      }
+
+      function buildPaletteFromEmbeddedData(imageData) {
+        const palette = [{ r: 0, g: 0, b: 0, a: 0 }];
+        const rgbMap = new Map();
+        if (!imageData || imageData.length < SKIN_SIZE.w * SKIN_SIZE.h * 4) {
+          return { palette, rgbMap };
+        }
+        for (let coordIndex = 1; coordIndex < unusePixelIndicesInScanOrder.length; coordIndex++) {
+          const pixelIndex = unusePixelIndicesInScanOrder[coordIndex];
+          const di = pixelIndex * 4;
+          const alpha = imageData[di + 3];
+          if (alpha === 0) {
+            continue;
+          }
+          const r = imageData[di + 0];
+          const g = imageData[di + 1];
+          const b = imageData[di + 2];
+          const key = rgbKey(r, g, b);
+          if (rgbMap.has(key)) {
+            continue;
+          }
+          const paletteIndex = palette.length;
+          palette.push({ r, g, b, a: 255 });
+          rgbMap.set(key, paletteIndex);
+        }
+        return { palette, rgbMap };
       }
 
 
@@ -2448,7 +2593,14 @@ SOFTWARE.
 
       function buildExportPngDataUrl() {
         updateExportCanvasComposite();
-        return domRefs.exportCanvas.toDataURL('image/png');
+        if (editorState.paletteEmbeddingEnabled) {
+          applyPaletteEmbeddingToExportCanvas();
+        }
+        const dataUrl = domRefs.exportCanvas.toDataURL('image/png');
+        if (editorState.paletteEmbeddingEnabled) {
+          updateExportCanvasComposite();
+        }
+        return dataUrl;
       }
 
       async function loadPngFile(file) {
@@ -2492,7 +2644,7 @@ SOFTWARE.
           contexts.base.putImageData(baseImg, 0, 0);
           contexts.outer.putImageData(outerImg, 0, 0);
 
-          rebuildPaletteAndIndexMapsFromCanvases();
+          rebuildPaletteAndIndexMapsFromCanvases(src);
           renderPalette();
         } finally {
           URL.revokeObjectURL(url);
@@ -2520,11 +2672,14 @@ SOFTWARE.
 
           const src = tctx.getImageData(0, 0, tmp.width, tmp.height).data;
 
-          /* 透明(0番)は常に保持。PNGからは非透明のみを追加。 */
-          const palette = [{ r: 0, g: 0, b: 0, a: 0 }];
+          const extracted = buildPaletteFromEmbeddedData(src);
+          editorState.palette = extracted.palette.slice();
 
-          const map = new Map();
-          map.set(colorKey(palette[0]), 0);
+          const paletteColorMap = new Map();
+          for (let paletteIndex = 1; paletteIndex < editorState.palette.length; paletteIndex++) {
+            const c = editorState.palette[paletteIndex];
+            paletteColorMap.set(rgbKey(c.r, c.g, c.b), paletteIndex);
+          }
 
           for (let byteOffset = 0; byteOffset < src.length; byteOffset += 4) {
             const a = src[byteOffset + 3];
@@ -2532,17 +2687,16 @@ SOFTWARE.
               continue;
             }
 
-            const c = { r: src[byteOffset + 0], g: src[byteOffset + 1], b: src[byteOffset + 2], a: 255 };
-            const key = colorKey(c);
-            if (map.has(key)) {
+            const r = src[byteOffset + 0], g = src[byteOffset + 1], b = src[byteOffset + 2];
+            const key = rgbKey(r, g, b);
+            if (paletteColorMap.has(key)) {
               continue;
             }
 
-            map.set(key, palette.length);
-            palette.push(c);
+            const paletteIndex = editorState.palette.length;
+            editorState.palette.push({ r, g, b, a: 255 });
+            paletteColorMap.set(key, paletteIndex);
           }
-
-          editorState.palette = palette;
 
           _markDirty();
           /* 既存キャンバスの見た目を維持するため、現在のレイヤー画像を新パレットへ再マッピング */
@@ -2596,8 +2750,9 @@ SOFTWARE.
         }
       }
 
-      function rebuildPaletteAndIndexMapsFromCanvases() {
-        editorState.palette = [{ r: 0, g: 0, b: 0, a: 0 }];
+      function rebuildPaletteAndIndexMapsFromCanvases(imageData) {
+        const extracted = buildPaletteFromEmbeddedData(imageData);
+        editorState.palette = extracted.palette.slice();
         _markDirty();
         editorState.selectedPaletteIndex = 0;
         editorState.editingPaletteIndex = 0;
@@ -2606,8 +2761,7 @@ SOFTWARE.
           editorState.pixelIndexByLayer[layer.id].fill(UNRESOLVED_INDEX);
         }
 
-        const map = new Map();
-        map.set(colorKey({ r: 0, g: 0, b: 0, a: 0 }), 0);
+        const rgbMap = extracted.rgbMap || new Map();
 
         for (const layer of LAYERS) {
           const layerCtx = getLayerCtx(layer.id);
@@ -2617,17 +2771,31 @@ SOFTWARE.
 
           for (let pixelIndex = 0; pixelIndex < indexMap.length; pixelIndex++) {
             const di = pixelIndex * 4;
+            if (isUnusePixelIndex(pixelIndex)) {
+              data[di + 0] = 0;
+              data[di + 1] = 0;
+              data[di + 2] = 0;
+              data[di + 3] = 0;
+              indexMap[pixelIndex] = 0;
+              continue;
+            }
             const a = data[di + 3];
-            const c = { r: data[di + 0], g: data[di + 1], b: data[di + 2], a: (a === 0 ? 0 : 255) };
-            const key = colorKey(c);
-            let paletteIndex = map.get(key);
+            if (a === 0) {
+              indexMap[pixelIndex] = 0;
+              continue;
+            }
+            const r = data[di + 0], g = data[di + 1], b = data[di + 2];
+            const key = rgbKey(r, g, b);
+            let paletteIndex = rgbMap.get(key);
             if (paletteIndex === undefined) {
               paletteIndex = editorState.palette.length;
-              editorState.palette.push(c);
-              map.set(key, paletteIndex);
+              editorState.palette.push({ r, g, b, a: 255 });
+              rgbMap.set(key, paletteIndex);
             }
             indexMap[pixelIndex] = paletteIndex;
+            data[di + 3] = 255;
           }
+          layerCtx.putImageData(img, 0, 0);
         }
 
         setEditingPaletteIndex(0);
@@ -2635,6 +2803,7 @@ SOFTWARE.
       }
 
       function colorKey(c) { return `${c.r},${c.g},${c.b},${c.a}`; }
+      function rgbKey(r, g, b) { return `${r},${g},${b}`; }
 
       function clampInt(v, min, max) { if (!Number.isFinite(v)) return min; return Math.min(max, Math.max(min, v)); }
       function clampFloat(v, min, max) { if (!Number.isFinite(v)) return min; return Math.min(max, Math.max(min, v)); }

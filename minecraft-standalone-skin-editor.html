@@ -466,7 +466,7 @@ SOFTWARE.
 <body>
 
   <header>
-    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.0.0</span>
+    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.0.1</span>
 
     <span class="model-type">
       <label><input type="radio" name="modelType" id="modelTypeStandard" value="standard" checked />standard</label>
@@ -2120,14 +2120,54 @@ SOFTWARE.
         renderAll();
       }
 
+      function buildUsingPixelMask64x64() {
+        const mask = new Uint8Array(SKIN_SIZE.w * SKIN_SIZE.h);
+
+        const parts = getPartTemplates();
+        for (const part of parts) {
+          const facesByLayer = part.facesByLayer;
+          for (const layerKey of Object.keys(facesByLayer)) {
+            const faces = facesByLayer[layerKey];
+            for (const face of faces) {
+              const x0 = face.x;
+              const y0 = face.y;
+              const x1 = face.x + face.w;
+              const y1 = face.y + face.h;
+
+              const clampedX0 = Math.max(0, Math.min(SKIN_SIZE.w, x0));
+              const clampedY0 = Math.max(0, Math.min(SKIN_SIZE.h, y0));
+              const clampedX1 = Math.max(0, Math.min(SKIN_SIZE.w, x1));
+              const clampedY1 = Math.max(0, Math.min(SKIN_SIZE.h, y1));
+
+              for (let y = clampedY0; y < clampedY1; y++) {
+                const rowBase = y * SKIN_SIZE.w;
+                for (let x = clampedX0; x < clampedX1; x++) {
+                  mask[rowBase + x] = 1;
+                }
+              }
+            }
+          }
+        }
+
+        return mask;
+      }
+
+
+
       function purgeUnusedPaletteColors() {
         /* 0番（透明）は常に残す */
         const used = new Uint8Array(editorState.palette.length);
         used[0] = 1;
 
+        /* USING領域（Minecraftスキンとして参照される領域）のみを走査対象とする */
+        const usingMask = buildUsingPixelMask64x64();
+
         for (const layer of LAYERS) {
           const map = editorState.pixelIndexByLayer[layer.id];
           for (let pixelIndex = 0; pixelIndex < map.length; pixelIndex++) {
+            if (usingMask[pixelIndex] !== 1) {
+              continue;
+            }
             const v = map[pixelIndex];
             if (v === UNRESOLVED_INDEX) {
               continue;

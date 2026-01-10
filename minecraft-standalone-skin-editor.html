@@ -466,7 +466,7 @@ SOFTWARE.
 <body>
 
   <header>
-    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.0.1</span>
+    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.0.2</span>
 
     <span class="model-type">
       <label><input type="radio" name="modelType" id="modelTypeStandard" value="standard" checked />standard</label>
@@ -579,8 +579,7 @@ SOFTWARE.
           <div id="paletteGrid" class="paletteGrid"></div>
 
           <div id="paletteEditor" class="paletteEditor">
-            <label>色の編集 <input id="palColorInp" type="color" value="#ffffff" /></label> <button id="palApplyBtn">反映</button>
-            <button id="palDeleteBtn" class="danger">削除</button>
+            <label>色の編集 <input id="palColorInp" type="color" value="#ffffff" /></label> <button id="palDeleteBtn" class="danger">削除</button>
           </div>
         </div>
       </div>
@@ -951,8 +950,7 @@ SOFTWARE.
           palettePurgeUnusedBtn: byId('palettePurgeUnusedBtn'),
           paletteGrid: byId('paletteGrid'),
           activeColorText: byId('activeColorText'),
-
-          palColorInp: (byId('palColorInp')), palApplyBtn: byId('palApplyBtn'),
+          palColorInp: (byId('palColorInp')),
           palDeleteBtn: byId('palDeleteBtn'),
 
           layersContainer: byId('layersContainer'),
@@ -1403,13 +1401,30 @@ SOFTWARE.
         domRefs.palettePurgeUnusedBtn.addEventListener('click', () => {
           purgeUnusedPaletteColors();
         });
-        domRefs.palApplyBtn.addEventListener('click', () => {
-          const editedIndex = editorState.editingPaletteIndex;
-          const changed = applyPaletteEdit();
-          if (changed) { recolorPixelsForPaletteIndexAcrossLayers(editedIndex); renderAll(); }
-          renderPalette();
-        });
 
+        /* 色の編集は「カラー入力の変更＝即反映」とします。 */
+        let _paletteColorApplyPending = false;
+        function _applyPaletteColorFromInput() {
+          if (editorState.editingPaletteIndex === 0) {
+            return;
+          }
+          if (_paletteColorApplyPending) {
+            return;
+          }
+          _paletteColorApplyPending = true;
+          requestAnimationFrame(() => {
+            _paletteColorApplyPending = false;
+            const editedIndex = editorState.editingPaletteIndex;
+            const changed = applyPaletteEdit();
+            if (changed) {
+              recolorPixelsForPaletteIndexAcrossLayers(editedIndex);
+              renderAll();
+            }
+            renderPalette();
+          });
+        }
+
+        domRefs.palColorInp.addEventListener('input', _applyPaletteColorFromInput);
         domRefs.palDeleteBtn.addEventListener('click', () => { deleteEditingPaletteColorAcrossLayers(); renderPalette(); });
 
         domRefs.autoRotateChk.addEventListener('change', () => { preview3d.autoRotate = !!domRefs.autoRotateChk.checked; });
@@ -1953,7 +1968,6 @@ SOFTWARE.
         editorState.editingPaletteIndex = clampPaletteIndex(index);
         const c = editorState.palette[editorState.editingPaletteIndex] ?? editorState.palette[0];
         domRefs.palColorInp.value = rgbToHex(c.r, c.g, c.b);
-        domRefs.palApplyBtn.disabled = (editorState.editingPaletteIndex === 0);
         domRefs.palDeleteBtn.disabled = (editorState.editingPaletteIndex === 0);
       }
       function appendPaletteColor(color) {

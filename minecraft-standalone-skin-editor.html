@@ -223,11 +223,18 @@ SOFTWARE.
       cursor: pointer;
       position: relative;
       overflow: hidden;
+      outline: 2px solid transparent;
+      outline-offset: 0px;
+      user-select: none;
+      touch-action: none;
     }
 
     .swatch.selected {
-      outline: 2px solid rgba(0, 255, 255, 0.9);
-      outline-offset: 0px;
+      outline-color: rgba(0, 255, 255, 0.9);
+    }
+
+    .swatch.dropTarget {
+      outline-color: rgba(255, 214, 51, 0.9);
     }
 
     .swatch .indexLabel {
@@ -466,7 +473,7 @@ SOFTWARE.
 <body>
 
   <header>
-    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.1.0</span>
+    <strong>Minecraft Standalone Skin Editor</strong><span>Ver.1.2.0</span>
 
     <span class="model-type">
       <label><input type="radio" name="modelType" id="modelTypeStandard" value="standard" checked />standard</label>
@@ -1008,6 +1015,14 @@ SOFTWARE.
           outer: new Int16Array(SKIN_SIZE.w * SKIN_SIZE.h),
         }),
       };
+
+      const paletteDragState = {
+        isDragging: false,
+        pointerId: null,
+        sourceIndex: null,
+        currentTargetIndex: null,
+        currentTargetElement: null,
+      };
       /* 3) 一時保存（localStorage）
        * - ブラウザリロード/クラッシュでも復旧できるよう、編集中の状態を退避する。
        * - ここで言う「dirty」は、最後に一時保存した内容との差分がある状態を指す。
@@ -1428,6 +1443,25 @@ SOFTWARE.
         });
         domRefs.paletteEmbedChk.addEventListener('change', () => {
           editorState.paletteEmbeddingEnabled = !!domRefs.paletteEmbedChk.checked;
+        });
+        window.addEventListener('pointermove', (ev) => {
+          if (!paletteDragState.isDragging || ev.pointerId !== paletteDragState.pointerId) {
+            return;
+          }
+          updatePaletteDragTarget(ev.clientX, ev.clientY);
+        });
+        window.addEventListener('pointerup', (ev) => {
+          if (!paletteDragState.isDragging || ev.pointerId !== paletteDragState.pointerId) {
+            return;
+          }
+          updatePaletteDragTarget(ev.clientX, ev.clientY);
+          completePaletteDrag();
+        });
+        window.addEventListener('pointercancel', (ev) => {
+          if (!paletteDragState.isDragging || ev.pointerId !== paletteDragState.pointerId) {
+            return;
+          }
+          cancelPaletteDrag();
         });
 
         /* 色の編集は「カラー入力の変更＝即反映」とします。 */
@@ -2042,11 +2076,113 @@ SOFTWARE.
         }
         return appendPaletteColor(color);
       }
+      function canBeginPaletteDrag() { return editorState.palette.length > 1; }
+      function beginPaletteDrag(paletteIndex, pointerId) {
+        if (!canBeginPaletteDrag() || paletteIndex === 0) {
+          return;
+        }
+        if (paletteDragState.isDragging) {
+          cancelPaletteDrag();
+        }
+        paletteDragState.isDragging = true;
+        paletteDragState.pointerId = pointerId;
+        paletteDragState.sourceIndex = paletteIndex;
+        setPaletteDropTarget(null);
+      }
+      function updatePaletteDragTarget(clientX, clientY) {
+        if (!paletteDragState.isDragging) {
+          return;
+        }
+        const targetIndex = resolvePaletteDropIndex(clientX, clientY);
+        if (targetIndex === paletteDragState.currentTargetIndex) {
+          return;
+        }
+        setPaletteDropTarget(targetIndex);
+      }
+      function completePaletteDrag() {
+        if (!paletteDragState.isDragging) {
+          return;
+        }
+        const sourceIndex = paletteDragState.sourceIndex;
+        const targetIndex = paletteDragState.currentTargetIndex;
+        cancelPaletteDrag();
+        if (typeof sourceIndex !== 'number' || typeof targetIndex !== 'number') {
+          return;
+        }
+        if (sourceIndex === targetIndex) {
+          return;
+        }
+        swapPaletteColors(sourceIndex, targetIndex);
+      }
+      function cancelPaletteDrag() {
+        if (paletteDragState.currentTargetElement) {
+          paletteDragState.currentTargetElement.classList.remove('dropTarget');
+        }
+        paletteDragState.isDragging = false;
+        paletteDragState.pointerId = null;
+        paletteDragState.sourceIndex = null;
+        paletteDragState.currentTargetIndex = null;
+        paletteDragState.currentTargetElement = null;
+      }
+      function setPaletteDropTarget(targetIndex) {
+        if (paletteDragState.currentTargetElement) {
+          paletteDragState.currentTargetElement.classList.remove('dropTarget');
+        }
+        paletteDragState.currentTargetIndex = null;
+        paletteDragState.currentTargetElement = null;
+        if (!Number.isFinite(targetIndex)) {
+          return;
+        }
+        const el = findPaletteSwatchElement(targetIndex);
+        if (!el) {
+          return;
+        }
+        paletteDragState.currentTargetIndex = targetIndex;
+        paletteDragState.currentTargetElement = el;
+        el.classList.add('dropTarget');
+      }
+      function findPaletteSwatchElement(paletteIndex) {
+        return domRefs.paletteGrid.querySelector(`.swatch[data-palette-index="${paletteIndex}"]`);
+      }
+      function resolvePaletteDropIndex(clientX, clientY) {
+        const node = document.elementFromPoint(clientX, clientY);
+        if (!node) {
+          return null;
+        }
+        const swatch = node.closest('.swatch');
+        if (!swatch || !domRefs.paletteGrid.contains(swatch)) {
+          return null;
+        }
+        const paletteIndex = Number(swatch.dataset.paletteIndex ?? '');
+        if (!Number.isFinite(paletteIndex) || paletteIndex === 0) {
+          return null;
+        }
+        if (paletteIndex === paletteDragState.sourceIndex) {
+          return null;
+        }
+        return paletteIndex;
+      }
+      function swapPaletteColors(sourceIndex, targetIndex) {
+        if (sourceIndex <= 0 || targetIndex <= 0) {
+          return;
+        }
+        const sourceColor = editorState.palette[sourceIndex];
+        const targetColor = editorState.palette[targetIndex];
+        if (!sourceColor || !targetColor) {
+          return;
+        }
+        editorState.palette[sourceIndex] = targetColor;
+        editorState.palette[targetIndex] = sourceColor;
+        _markDirty();
+        renderPalette();
+      }
       function renderPalette() {
+        setPaletteDropTarget(null);
         domRefs.paletteGrid.innerHTML = '';
         editorState.palette.forEach((c, paletteIndex) => {
           const sw = document.createElement('div');
           sw.className = 'swatch' + (paletteIndex === editorState.selectedPaletteIndex ? ' selected' : '');
+          sw.dataset.paletteIndex = String(paletteIndex);
           if (paletteIndex === 0) {
             sw.classList.add('transparent');
           }
@@ -2065,6 +2201,15 @@ SOFTWARE.
             selectPaletteIndex(paletteIndex);
             setEditingPaletteIndex(paletteIndex);
             renderPalette();
+          });
+          sw.addEventListener('pointerdown', (ev) => {
+            if (ev.button !== 0) {
+              return;
+            }
+            if (!canBeginPaletteDrag()) {
+              return;
+            }
+            beginPaletteDrag(paletteIndex, ev.pointerId);
           });
 
           domRefs.paletteGrid.appendChild(sw);

@@ -1,0 +1,70 @@
+import PIL.Image
+import numpy
+
+# 参考： https://day-for-python.binarized.net/optimize_palette_color_png.html
+
+
+def _is_index_color_picture(maybe_index_color_picture: PIL.Image.Image) -> bool:
+    return maybe_index_color_picture.getpalette() is not None
+
+
+def _optimize_index_color_picture(maybe_index_color_picture: PIL.Image.Image) -> PIL.Image.Image | None:
+    MAX_COLORS = 256
+    RGB_BYTES_SIZE = 3
+    if not _is_index_color_picture(maybe_index_color_picture):
+        return None
+    index_color_picture = maybe_index_color_picture
+    # ヒストグラムから使用色を求め、旧パレットから新パレットへのカラーインデックス値の変換ペアを作る
+    histogram = index_color_picture.histogram()
+    conversion_pairs: list[tuple[int, int]]
+    conversion_pairs = []
+    destination_index = 0
+    for index, count in enumerate(histogram):
+        if 0 < count:
+            conversion_pairs.append((index, destination_index))
+            destination_index += 1
+    # 使用色だけを抜き出して新パレットに詰め直す
+    palette = index_color_picture.getpalette()
+    assert (palette is not None)
+    new_palette = [0] * RGB_BYTES_SIZE * len(conversion_pairs)
+    for conversion_pair in conversion_pairs:
+        new_palette[conversion_pair[1] * RGB_BYTES_SIZE + 0] = palette[conversion_pair[0] * RGB_BYTES_SIZE + 0]
+        new_palette[conversion_pair[1] * RGB_BYTES_SIZE + 1] = palette[conversion_pair[0] * RGB_BYTES_SIZE + 1]
+        new_palette[conversion_pair[1] * RGB_BYTES_SIZE + 2] = palette[conversion_pair[0] * RGB_BYTES_SIZE + 2]
+    # ピクセル単位のカラーインデックス変換を単純化するために変換テーブルを作る
+    conversion_table = numpy.zeros(MAX_COLORS, dtype=int)
+    for conversion_pair in conversion_pairs:
+        conversion_table[conversion_pair[0]] = conversion_pair[1]
+    # 変換テーブルを元に画像に埋め込まれた旧パレットのカラーインデックスを新パレットのカラーインデックスへ変換する
+    indices = numpy.array(index_color_picture)
+    new_indices = numpy.array([conversion_table[index] for index in indices], dtype=numpy.uint8)
+    new_index_bmp_image = PIL.Image.fromarray(new_indices)
+    # 新しく生成したインデックスカラー画像に新パレットを登録する
+    new_index_bmp_image.putpalette(new_palette, rawmode="RGB")
+    return new_index_bmp_image
+
+
+def _main() -> None:
+    import base64
+    import argparse
+    from pathlib import Path
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input_index_color_picture_file_path', type=Path, required=True)
+    args = parser.parse_args()
+    input_index_color_picture_file_path: Path = args.input_index_color_picture_file_path
+
+    picture = PIL.Image.open(input_index_color_picture_file_path)  # PIL.Image.Imageインスタンスとして画像を読み込む
+    optimized_picture = _optimize_index_color_picture(picture)
+    if optimized_picture is None:
+        raise RuntimeError('指定されたファイルはインデックスカラー画像ファイルではありません。')
+    output_png_file_path = input_index_color_picture_file_path.with_suffix('.optimized.png')
+    optimized_picture.save(output_png_file_path, compress_level=9)
+
+    png_data = output_png_file_path.read_bytes()
+    img_tag_src = f'data:image/png;base64,{base64.b64encode(png_data).decode()}'
+    print(img_tag_src)
+    return None
+
+
+if __name__ == '__main__':
+    _main()
